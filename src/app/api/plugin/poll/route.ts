@@ -99,7 +99,7 @@ export async function POST(req: Request) {
     const claimed = await db
       .update(commands)
       .set({ status: "sent", sentAt: new Date() })
-      .where(and(eq(commands.connectionId, conn.id), eq(commands.status, "pending"), sql`exists(select 1 from connections where id=${conn.id} and paused=0)`))
+      .where(and(eq(commands.connectionId, conn.id), eq(commands.status, "pending"), sql`exists(select 1 from connections where id=${conn.id} and paused=0)`,sql`(${commands.source}='dashboard' or not exists(select 1 from project_rooms r cross join lateral jsonb_array_elements(r.team->'participants') p where r.id=(select active_room_id from connections where id=${conn.id}) and p->>'control' in ('paused','stopped','removed') and (${commands.agent} is null or lower(p->>'agent')=lower(${commands.agent}))))`))
       .returning({ id: commands.id, type: commands.type, payload: commands.payload });
 
     if (claimed.length > 0 || Date.now() >= deadline || req.signal.aborted) {

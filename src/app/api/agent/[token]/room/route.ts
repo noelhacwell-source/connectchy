@@ -20,7 +20,7 @@ import {
   agentPresence,
   chatReceipts,
 } from "@/db/schema";
-import { AGENT_PATTERN, unreadPings } from "@/lib/room-coordination";
+import { AGENT_PATTERN, unreadPings, guardAgentRequest } from "@/lib/room-coordination";
 import { apiError, ApiError, jsonBody, ownerRequest } from "@/lib/http-utils";
 import { project, type Context } from "@/lib/project-api";
 import { modules } from "@/lib/modules";
@@ -219,6 +219,7 @@ export async function POST(req: Request, ctx: Context) {
     const room = await requestRoom(req, conn.id, true),
       body = await jsonBody(req, 16000),
       m = modules(settings.modules);
+    if(body.action!=="ack")await guardAgentRequest(req,conn,body.agent);
     if (["pin", "edit", "delete"].includes(body.action)) {
       ownerRequest(req);
       if (body.action === "pin" ? !m.messagePins : !m.messageEditing)

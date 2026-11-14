@@ -294,7 +294,7 @@ export default function Workspace({ token }: { token: string }) {
           <Link
             href="/"
             className="brand-mark"
-            aria-label="Studio Link projects"
+            aria-label="Connectchy projects"
           >
             <span className="brand-glyph">
               s<span>l</span>
@@ -425,7 +425,7 @@ export default function Workspace({ token }: { token: string }) {
                   <Sparkles size={17} />
                 </span>
                 <div className="min-w-0">
-                  <strong>{status?.name ?? "Studio Link"}</strong>
+                  <strong>{status?.name ?? "Connectchy"}</strong>
                   <small>
                     {status?.online
                       ? (status.placeName ?? "Studio connected")

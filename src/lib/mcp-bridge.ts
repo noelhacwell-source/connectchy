@@ -6,6 +6,7 @@ import type { Connection } from "@/db/schema";
 import { featureSettings } from "@/lib/features";
 import { credentials } from "@/lib/project-api";
 import { ApiError } from "@/lib/http-utils";
+import { agentControlError } from "@/lib/room-coordination";
 
 export async function mcpCall(conn: Connection, serverId: string, method: "tools/list" | "tools/call", name?: string, args?: Record<string, unknown>) {
   const settings = featureSettings(conn.features);
@@ -28,7 +29,7 @@ export async function mcpCall(conn: Connection, serverId: string, method: "tools
   });
   try {
     await client.connect(transport, { timeout: 20000 });
-    if (method === "tools/call") return await client.callTool({ name: name!, arguments: args ?? {} }, undefined, { timeout: 45000 });
+    if (method === "tools/call") { const toolArgs={...args}; delete toolArgs._agent;delete toolArgs._room;return await client.callTool({ name: name!, arguments: toolArgs }, undefined, { timeout: 45000 }); }
     const tools = []; let cursor: string | undefined;
     for (let page = 0; page < 20; page++) {
       const result = await client.listTools({ cursor }, { timeout: 20000 });

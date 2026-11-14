@@ -53,10 +53,10 @@ export function buildAgentDocs(base: string, name: string, online: boolean, plac
     .join("\n\n");
   const demo = { className: "Part", parent: "Workspace", name: "Hello", properties: { Anchored: true, Size: [4, 1, 4] } };
 
-  return `# Studio Link - live connection to Roblox Studio
+  return `# Connectchy - live connection to Roblox Studio
 
 You are reading the control link for the Roblox Studio connection "${name}".
-Studio is currently ${online ? `ONLINE${place ? ` (place: ${place})` : ""}` : "OFFLINE - the user must open Roblox Studio with the Studio Link plugin installed"}.
+Studio is currently ${online ? `ONLINE${place ? ` (place: ${place})` : ""}` : "OFFLINE - the user must open Roblox Studio with the Connectchy plugin installed"}.
 
 Every request you send through this link is executed inside the user's open Roblox Studio
 session by a plugin: you can read the whole game, create and edit instances, write scripts,

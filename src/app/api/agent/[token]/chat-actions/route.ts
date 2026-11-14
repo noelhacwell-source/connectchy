@@ -95,6 +95,7 @@ export async function POST(req: Request, ctx: Context) {
       room = await requestRoom(req, conn.id),
       active = await ensureActiveRoom(conn.id);
     const agent = typeof body.agent === "string" ? body.agent : "Owner";
+    if(action!=="seen")await guardAgentRequest(req,conn,agent);
     if (
       !/^[A-Za-z][A-Za-z0-9_-]{0,39}$/.test(agent) ||
       agent.toLowerCase() === "coordinator"
@@ -416,3 +417,4 @@ export async function POST(req: Request, ctx: Context) {
 }
 
 
+import { guardAgentRequest } from "@/lib/room-coordination";

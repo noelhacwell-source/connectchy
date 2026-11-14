@@ -14,7 +14,7 @@ export async function GET(req: Request, { params }: Ctx) {
   const { token } = await params;
   const conn = await findByToken(token);
   if (!conn) {
-    return new Response("Unknown Studio Link connection. Ask the user for a current link.\n", {
+    return new Response("Unknown Connectchy connection. Ask the user for a current link.\n", {
       status: 404,
       headers: { ...noStore, "Content-Type": "text/plain; charset=utf-8" },
     });

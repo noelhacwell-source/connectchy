@@ -24,7 +24,7 @@ export default function SetupPanel({ token, status }: { token: string; status: S
     status.features?.room && !status.modules?.pingInbox && "Priority pings are disabled: no ping acknowledgement gate is active.",
     status.features?.uploads && "Asset uploads are enabled. Use /uploads for supported images/models and, if audioUploads is enabled, sound effects/music. Poll processing, then insert the asset or create a Sound with the returned asset ID. Read upload instructions and Roblox permission requirements first.",
     status.modules?.gameReferences && "Read /references before building. Research ALL enabled game references using public sources, save cited briefs with POST /references, compare their strengths and adapt original ideas for my game. Do not claim private code access or gameplay you did not observe. The optional reference gate blocks mutations until research is saved.",
-    "Read /control before starting and between meaningful steps. When paused=true, acknowledge with POST /control {action:'ackStop',agent:YOUR_NAME}, stop generating/tool calls, and end your turn until I resume. Never bypass Stop. Read the extended chat tool instructions and use the shared room to coordinate.",
+    "Read /control?agent=YOUR_NAME before starting and between meaningful steps, so both project Stop and individual role Pause/Stop/Remove are honored. When paused=true, acknowledge with POST /control {action:'ackStop',agent:YOUR_NAME}, stop generating/tool calls, and end your turn until I resume or restore you. Never bypass controls by changing names. Include your agent name on all uploads, workspace writes, research, and MCP calls. Read the extended chat instructions and coordinate in the shared room.",
     status.features?.mcps && "MCP tools are enabled. Discover servers at /tools, list a server's tool schemas with /tools?server=<id>, and call tools with POST /tools. You can use terminal HTTP calls; native MCP installation is not required.",
     status.features?.skills && "Skills are enabled. List /skills, read relevant skills with /skills?id=<id>, and follow their instructions while using the available commands.",
   ].filter(Boolean).join("\n\n");
@@ -103,7 +103,7 @@ export default function SetupPanel({ token, status }: { token: string; status: S
           </li>
           <li>Move the downloaded file into that folder.</li>
           <li>
-            Restart Studio and open your place. A <strong className="text-text">Studio Link</strong> panel appears and
+            Restart Studio and open your place. A <strong className="text-text">Connectchy</strong> panel appears and
             shows <strong className="text-ok">CONNECTED</strong>.
           </li>
           <li>
@@ -114,7 +114,7 @@ export default function SetupPanel({ token, status }: { token: string; status: S
         <p className="mt-4 text-xs leading-relaxed text-dim">
           The file contains a private project key. Do not share it. Studio connects to the app on this computer,
           so changing the public AI tunnel does not require reinstalling the plugin. For a different server,
-          change the saved app address in the Studio Link panel. To use another project, paste its AI link
+          change the saved app address in the Connectchy panel. To use another project, paste its AI link
           in that panel and click Save / pair and reconnect. The plugin only runs while editing.
         </p>
       </Panel>

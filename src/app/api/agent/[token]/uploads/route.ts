@@ -26,6 +26,7 @@ export async function POST(req: Request, ctx: Context) {
     try { form = await new Response(new Uint8Array(bytes), { headers: { "Content-Type": req.headers.get("content-type") ?? "" } }).formData(); }
     catch { throw new ApiError(400, "Send multipart/form-data with file, name and requestId."); }
     const file = form.get("file"), name = String(form.get("name") ?? "").trim(), requestId = String(form.get("requestId") ?? "");
+      await guardAgentRequest(req,conn,form.get("agent"));
     if (!(file instanceof File) || !file.size || file.size > 20_000_000) throw new ApiError(400, "Choose a nonempty supported file up to 20 MB.");
     if (!name || name.length > 50 || !/^[a-zA-Z0-9_-]{1,100}$/.test(requestId)) throw new ApiError(400, "Provide a name (1–50 characters) and unique requestId (letters, numbers, _ or -; up to 100).");
     const format = ASSET_FORMATS[file.name.split(".").at(-1)?.toLowerCase() ?? ""];
@@ -51,3 +52,4 @@ export async function POST(req: Request, ctx: Context) {
     }
   } catch (e) { return apiError(e); }
 }
+import { guardAgentRequest } from "@/lib/room-coordination";

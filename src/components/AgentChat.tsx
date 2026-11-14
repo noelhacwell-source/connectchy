@@ -452,7 +452,7 @@ export default function AgentChat({
               </span>
             </span>
             <span className="mt-1 block text-xs text-dim">
-              {team.participants.length} agents ·{" "}
+              {team.participants.filter(p=>p.control!=="removed").length} agents ·{" "}
               {team.phase === "active"
                 ? "Roles agreed"
                 : team.phase === "done"
@@ -1104,7 +1104,7 @@ export default function AgentChat({
             </div>
           </div>
           <p className="composer-hint">
-            Your AIs check this room through Studio Link. Keep their clients
+            Your AIs check this room through Connectchy. Keep their clients
             running.
           </p>
         </div>

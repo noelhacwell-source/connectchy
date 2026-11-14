@@ -57,7 +57,7 @@ paths. Never run undo over someone else's changes. Owner dashboard actions remai
 ${f.uploads ? `
 ### Upload images, 3D models and sound effects
 POST ${base}/uploads using multipart/form-data (NOT JSON), fields:
-file=@path, name (1–50 chars), description (optional), requestId (unique letters/digits/_/-, max 100).
+file=@path, name (1–50 chars), agent (your stable registered name), description (optional), requestId (unique letters/digits/_/-, max 100).
 Example terminal request:
 curl -X POST '${base}/uploads' -F 'file=@image.png' -F 'name=My image' -F 'requestId=unique-upload-001'
 Supported: PNG/JPEG/BMP/TGA images, FBX/GLB/self-contained glTF/RBXM/RBXMX models; up to 20 MB.
@@ -100,6 +100,7 @@ Enabled options: ${JSON.stringify(Object.entries(m).filter(([,v])=>v).map(([k])=
 Disabled modules reject their feature endpoints; some switches control only dashboard presentation.
 ${conn.paused?"PROJECT STOPPED: End generation and tool calls now. Wait for the owner to resume.":""}
 GET ${base}/control before starting and between meaningful steps, especially immediately before uploads, MCP calls or Studio mutations. If paused=true, stop generation/tool calls, POST /control {"action":"ackStop","agent":"YourName"}, then end your turn. stopRevision changes on every owner Stop signal. Do not retry blocked requests or find another route. The server blocks new changes and cancels queued work; it cannot forcibly terminate your external client or interrupt Luau already executing.
+Always request /control?agent=YourName so your individual role controls are included. The owner can pause, stop, remove, resume or restore individual roles in Team and roles. Read the agents array and your control instruction. A removed name stays blocked until explicitly restored, even after a planning reset. Do not change names to bypass controls. Include agent on workspace/research/upload requests and _agent on all MCP tool calls (including custom servers). Read and stop acknowledgements remain available while your role is blocked. Individual controls use self-reported names, not separate authenticated identities.
 
 ${m.gameReferences ? `
 ### Game references — research before building

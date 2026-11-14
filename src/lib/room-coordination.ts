@@ -4,6 +4,11 @@ import { db } from "@/db";
 import { projectRooms, roomMessages, roomReads, type Connection } from "@/db/schema";
 import { isNull } from "drizzle-orm";
 import { ensureActiveRoom } from "@/lib/project-rooms";
+import { ApiError, ownerRequest } from "@/lib/http-utils";
+export async function guardAgentRequest(req:Request,conn:Connection,agent:unknown){
+  if(typeof agent!=="string" || agent.toLowerCase()==="owner"){try{ownerRequest(req);return;}catch{/* Remote callers must identify their agent. */}}
+  const error=await agentControlError(conn,agent);if(error)throw new ApiError(423,error);
+}
 export const AGENT_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,39}$/;
 export async function agentControlError(conn: Connection, agent: unknown): Promise<string | null> {
   const team = (await ensureActiveRoom(conn.id)).team;

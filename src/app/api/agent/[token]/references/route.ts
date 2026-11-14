@@ -67,6 +67,7 @@ export async function POST(req: Request, ctx: Context) {
     if (!m.gameReferences)
       throw new ApiError(403, "Game references are disabled.");
     const body = await jsonBody(req, 90000);
+    await guardAgentRequest(req,conn,body.agent);
     if (conn.paused) {
       try {
         ownerRequest(req);
@@ -277,3 +278,4 @@ export async function POST(req: Request, ctx: Context) {
     return apiError(e);
   }
 }
+import { guardAgentRequest } from "@/lib/room-coordination";

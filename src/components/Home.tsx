@@ -75,7 +75,7 @@ export default function Home() {
     e.preventDefault();
     const token = extractToken(paste);
     if (!token) {
-      setError("Paste a Studio Link project or agent link.");
+      setError("Paste a Connectchy project or agent link.");
       return;
     }
     router.push(`/c/${token}`);
@@ -166,7 +166,7 @@ export default function Home() {
                 Project or agent link
                 <input
                   className="workspace-input mt-2"
-                  placeholder="Paste your Studio Link URL"
+                  placeholder="Paste your Connectchy URL"
                   value={paste}
                   onChange={(e) => setPaste(e.target.value)}
                 />
@@ -220,7 +220,7 @@ export default function Home() {
           )}
         </section>
         <footer className="mt-16 border-t border-line pt-6 text-xs leading-relaxed text-dim">
-          AI clients connect through your private link. Studio Link does not run
+          AI clients connect through your private link. Connectchy does not run
           AI models for you.
           <br />
           Keep the app and Studio open while your agents work.

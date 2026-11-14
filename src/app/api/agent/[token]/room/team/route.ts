@@ -115,7 +115,7 @@ export async function POST(req: Request, ctx: Context) {
         if(!wasRemoved && data.operation==="restore")throw new ApiError(409,"This agent is not removed.");
         p.controlRevision=(p.controlRevision??0)+1;
         p.control=data.operation==="pause"?"paused":data.operation==="stop"?"stopped":data.operation==="remove"?"removed":undefined;
-        if(data.operation==="remove")team.expected=Math.max(1,team.expected-1);
+        if(data.operation==="remove"){team.expected=Math.max(1,team.expected-1);if(!team.participants.some(p=>p.control!=="removed"))team.phase="planning";}
         if(data.operation==="restore"){
           if(team.participants.filter(p=>p.control!=="removed").length>32)throw new ApiError(409,"Team limit reached.");
           team.expected=Math.max(team.expected,team.participants.filter(p=>p.control!=="removed").length);
@@ -221,7 +221,7 @@ export async function POST(req: Request, ctx: Context) {
           agent: "Coordinator",
           text,
           kind: "decision",
-          mentions: ["all"],
+          mentions: data.action==="manage" ? [data.agent.toLowerCase()] : ["all"],
         });
       return team;
     });

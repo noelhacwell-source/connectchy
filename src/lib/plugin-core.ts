@@ -1,9 +1,9 @@
-/** Studio Link plugin, part 1: services, paths, value conversion, tree. Plain Lua 5.1 syntax. */
-export const PLUGIN_CORE = String.raw`-- Studio Link: connects this Studio session to your Studio Link dashboard / AI agent.
+/** Connectchy plugin, part 1: services, paths, value conversion, tree. Plain Lua 5.1 syntax. */
+export const PLUGIN_CORE = String.raw`-- Connectchy: connects this Studio session to your Connectchy dashboard / AI agent.
 -- Generated file. The key below is a secret for ONE connection. Do not share it.
 local SERVER_URL = "__SERVER_URL__"
 local PLUGIN_KEY = "__PLUGIN_KEY__"
-local PLUGIN_VERSION = "1.2.0"
+local PLUGIN_VERSION = "1.2.1"
 local ADDRESS_SETTING = "StudioLinkServer:" .. PLUGIN_KEY
 local function validServerAddress(value)
 	if type(value) ~= "string" then return nil end

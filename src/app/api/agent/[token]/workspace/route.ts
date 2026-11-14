@@ -148,6 +148,7 @@ export async function POST(req: Request, ctx: Context) {
     const { conn, settings } = await project(ctx),
       body = await jsonBody(req, 250000);
     const action = body.action;
+    if(action!=="heartbeat")await guardAgentRequest(req,conn,body.agent);
     if(conn.paused&&action!=="heartbeat"){try{ownerRequest(req);}catch{throw new ApiError(423,"Project stopped. Agents must wait for resume.");}}
     if (action === "heartbeat") {
       requireModule(settings, "agentPresence");
@@ -470,3 +471,4 @@ export async function POST(req: Request, ctx: Context) {
     return apiError(e);
   }
 }
+import { guardAgentRequest } from "@/lib/room-coordination";

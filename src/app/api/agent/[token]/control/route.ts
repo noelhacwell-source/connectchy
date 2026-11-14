@@ -45,19 +45,21 @@ export async function POST(req: Request, ctx: Context) {
       )
         throw new ApiError(400, "Provide your agent name.");
       const room = await ensureActiveRoom(conn.id);
+      const participant=room.team.participants.find(p=>p.agent.toLowerCase()===body.agent.toLowerCase());
+      const acknowledgement=participant?.control?`${participant.control}; acknowledged individual signal ${participant.controlRevision??1}`:`Stopped; acknowledged signal ${conn.stopRevision}`;
       await db
         .insert(agentPresence)
         .values({
           connectionId: conn.id,
           roomId: room.id,
           agent: body.agent,
-          task: `Stopped; acknowledged signal ${conn.stopRevision}`,
+          task: acknowledgement,
         })
         .onConflictDoUpdate({
           target: [agentPresence.roomId, agentPresence.agent],
           set: {
             lastSeenAt: new Date(),
-            task: `Stopped; acknowledged signal ${conn.stopRevision}`,
+            task: acknowledgement,
           },
         });
       return Response.json({ ok: true, stopRevision: conn.stopRevision });

@@ -1,4 +1,4 @@
-/** Studio Link plugin, part 2: command handlers, polling loop, status panel. Plain Lua 5.1 syntax. */
+/** Connectchy plugin, part 2: command handlers, polling loop, status panel. Plain Lua 5.1 syntax. */
 export const PLUGIN_HANDLERS = String.raw`
 ---------------------------------------------------------------- commands
 local handlers = {}
@@ -459,7 +459,7 @@ local function execute(cmd)
 		return pcall(handler, payload)
 	end
 	-- Every change becomes one undo step in Studio.
-	local label = "Studio Link: " .. cmd.type
+	local label = "Connectchy: " .. cmd.type
 	local recording
 	pcall(function()
 		recording = ChangeHistoryService:TryBeginRecording(label)
@@ -480,13 +480,13 @@ end
 ---------------------------------------------------------------- status panel
 local state = { enabled = true, online = false, message = "Connecting...", done = 0, log = {} }
 
-local toolbar = plugin:CreateToolbar("Studio Link")
-local toolbarButton = toolbar:CreateButton("Studio Link", "Show the Studio Link connection panel", "")
+local toolbar = plugin:CreateToolbar("Connectchy")
+local toolbarButton = toolbar:CreateButton("Connectchy", "Show the Connectchy connection panel", "")
 local widget = plugin:CreateDockWidgetPluginGui(
 	"StudioLinkPanel",
 	DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, true, false, 400, 480, 320, 370)
 )
-widget.Title = "Studio Link"
+widget.Title = "Connectchy"
 
 local panel = Instance.new("Frame")
 panel.Size = UDim2.new(1, 0, 1, 0)
@@ -715,7 +715,7 @@ task.spawn(function()
 				end
 				for _, cmd in ipairs(data.commands or {}) do
                     local controlOk, control = pcall(function()
-                        local response = HttpService:RequestAsync({Url = SERVER_URL .. "/api/plugin/control", Method = "GET", Headers = {["x-plugin-key"] = PLUGIN_KEY}})
+                        local response = HttpService:RequestAsync({Url = SERVER_URL .. "/api/plugin/control?command=" .. tostring(cmd.id), Method = "GET", Headers = {["x-plugin-key"] = PLUGIN_KEY}})
                         if not response.Success then error("Cannot verify stop status") end
                         return HttpService:JSONDecode(response.Body)
                     end)

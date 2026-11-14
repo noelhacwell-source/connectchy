@@ -147,7 +147,7 @@ export async function runCommand(conn: Connection, input: RunInput): Promise<{ s
     if (!isOnline(conn)) {
       return fail(
         409,
-        "Roblox Studio is not connected. Ask the user to open Studio with the Studio Link plugin installed, then retry.",
+        "Roblox Studio is not connected. Ask the user to open Studio with the Connectchy plugin installed, then retry.",
       );
     }
     const review=input.source!=="dashboard"&&changesStudio(input.type,payload)&&modules(conn.features.modules).reviewQueue;

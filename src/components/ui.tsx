@@ -104,7 +104,7 @@ export function OfflineHint() {
     <div className="rounded-lg border border-dashed border-line bg-panel px-6 py-12 text-center">
       <p className="text-base font-medium text-text">Roblox Studio is not connected</p>
       <p className="mx-auto mt-2 max-w-md text-sm text-muted">
-        Open your place in Studio with the Studio Link plugin installed. This page updates by itself as soon as the
+        Open your place in Studio with the Connectchy plugin installed. This page updates by itself as soon as the
         plugin connects. First time here? Follow the Setup tab.
       </p>
     </div>

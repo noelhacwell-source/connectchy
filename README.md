@@ -1,11 +1,11 @@
-# Studio Link
+# Connectchy
 
 Connect an AI agent to an open Roblox Studio session. One plugin file in Studio, one private
 link for the AI. The agent can read the whole game, create and edit instances, write scripts
 and GUIs, insert Creator Store assets, and rename, move or delete anything.
 
 ```
-AI agent  --HTTP-->  Studio Link server (this app)  <--long poll--  plugin in Roblox Studio
+AI agent  --HTTP-->  Connectchy server (this app)  <--long poll--  plugin in Roblox Studio
 ```
 
 ## Use it
@@ -24,7 +24,7 @@ rename / duplicate / delete, set properties, run Luau, and see a live log of eve
 
 The default project view is a black, full-height agent chat. The upper-left agent switcher
 filters the conversation by participant. The upper-right Settings dialog contains the
-connection prompt, integrations, uploads and 27 independent workspace options. The sidebar
+connection prompt, integrations, uploads and individually configurable workspace options. The sidebar
 can be collapsed for a focused chat view; on small screens it starts closed. Existing projects
 keep their credentials and core feature settings. New projects start with communication enabled.
 
@@ -46,7 +46,7 @@ do not recreate deleted scripts or restore instances, properties, models or terr
 preflights script paths and sends one batch; a runtime failure can still yield a partial restore
 and is reported. Checks verify readable paths, not code compilation or gameplay. Room handoffs
 are factual stored snapshots, not generated AI summaries. Presence is self-reported room checks,
-not proof an AI process is running. Studio Link does not start AI clients or run models.
+not proof an AI process is running. Connectchy does not start AI clients or run models.
 
 ## Agent API
 
@@ -77,10 +77,24 @@ Safety properties: only hashes of credentials are stored; commands queued while 
 offline are rejected, and anything older than 5 minutes is never delivered; every change is one
 undo step in Studio; the plugin runs only in edit mode.
 
+## Game references and agent controls
+
+Add multiple Roblox game links under **Game references**. Connectchy retrieves public details;
+your connected AI researches public sources and saves cited briefs. An optional research gate
+blocks edits until those briefs are saved. Research requires the AI's own browsing tools.
+
+The chat includes polls, reactions, checklists, threads, templates, filters, message recovery,
+and more than 30 individually configurable chat options. **Team and roles** lets you pause,
+stop, remove, resume or restore named agents. Removing an agent releases its team slot.
+Project Stop and individual controls block new work and cancel queued commands. External AI
+generation and already-running Luau cannot be forcibly interrupted. Agent names are self-reported.
+
 ## Limits
 
-- Studio must be open. The plugin cannot publish, play test, or upload new image / mesh files:
-  assets must already exist on Roblox (search or asset id).
+- Studio must be open. The app does not publish games or perform play tests automatically.
+- Optional Roblox Open Cloud uploads support images, models, and audio (MP3/OGG/WAV/FLAC).
+  They require your own Roblox credentials, upload permissions, moderation approval and quota.
+  Private audio may need experience permissions. Uploads persist on Roblox independently of Studio undo.
 - The link is a password. Anyone holding it can change the open place. Delete the connection to
   revoke it.
 
@@ -88,7 +102,8 @@ undo step in Studio; the plugin runs only in edit mode.
 
 ```
 npm install
-# set DATABASE_URL in .env
+# copy .env.example to .env and set DATABASE_URL for your PostgreSQL database
+# use UTF8 database encoding for emoji and multilingual messages
 npx drizzle-kit push
 npm run build && npm start
 ```
@@ -106,7 +121,7 @@ Agent instructions use the public address. Studio plugins use the stable local a
 Quick Tunnel addresses change when restarted. Share the updated AI link after a restart; the
 Studio plugin does not need reinstalling. It connects to http://127.0.0.1:3000 directly.
 The app must be running on the same computer as Studio. The tunnel is only needed by online AIs.
-The Studio Link panel has a saved server-address field and an optional project-link field.
+The Connectchy panel has a saved server-address field and an optional project-link field.
 Paste another project’s private AI link and click Save / pair and reconnect to switch projects
 without reinstalling. Pairing is available only through the local app address. A deleted project
 cannot be recovered by reconnecting; pair the plugin with an existing project instead.
