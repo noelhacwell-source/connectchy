@@ -1,0 +1,49 @@
+import assert from'node:assert/strict';import 'dotenv/config';import pg from'pg';import{createHash}from'node:crypto';
+const host='http://127.0.0.1:3000';async function call(url,method='GET',body,status=200,headers={}){const r=await fetch(url,{method,headers:{...(body?{'Content-Type':'application/json'}:{}),...headers},body:body?JSON.stringify(body):undefined});const d=await r.json();assert.equal(r.status,status,JSON.stringify(d));return d;}
+const{token}=await call(host+'/api/connections','POST',{name:'Disposable full workspace verification'},201);const b=host+'/api/agent/'+token;const pool=new pg.Pool({connectionString:process.env.DATABASE_URL});let stopped=false;const abort=new AbortController();let worker;
+const sources=new Map([['ServerScriptService/Owned/Main',"print('original')"],['ServerScriptService/Other',"print('other')"]]);
+try{
+ let{settings}=await call(b+'/features');settings={...settings,room:true,mcps:true,modules:{...settings.modules,rolePlanning:false,pingInbox:false}};await call(b+'/features','PATCH',{settings});const room=(await call(b+'/rooms')).activeRoomId;
+ const{key}=await call(host+'/api/plugin/pair','POST',{token});
+ const run=(type,payload)=>{if(type==='get_source'){if(!sources.has(payload.path))throw new Error('Missing script');return{path:payload.path,source:sources.get(payload.path),className:'Script'};}if(type==='set_source'){if(!sources.has(payload.path))throw new Error('Missing script');sources.set(payload.path,payload.source);return{path:payload.path};}if(type==='get_instance'){if(!sources.has(payload.path))throw new Error('Missing instance');return{path:payload.path,className:'Script',properties:{Name:'Main'}};}if(type==='batch'){let failed=0;for(const c of payload.commands){try{run(c.type,c.payload);}catch{failed++;if(payload.stopOnError)break;}}return{allOk:!failed,failed};}return{created:true};};
+ let results=[];
+ worker=(async()=>{while(!stopped){try{const r=await fetch(host+'/api/plugin/poll',{method:'POST',headers:{'Content-Type':'application/json','x-plugin-key':key},body:JSON.stringify({version:'verification-simulator',place:{name:'Disposable simulated Studio',placeId:'0'},results}),signal:abort.signal});const d=await r.json();results=[];for(const c of d.commands??[]){try{results.push({id:c.id,ok:true,json:JSON.stringify({value:run(c.type,c.payload)})});}catch(e){results.push({id:c.id,ok:false,error:e.message});}}}catch(e){if(!stopped)throw e;}}})();
+ // Establish fake connectivity without touching the user's Studio project.
+ await call(host+'/api/plugin/poll','POST',{noWait:true,version:'verification-simulator'},200,{'x-plugin-key':key});
+ const make=(title,deps=[],status='backlog')=>({kind:'task',title,body:'Test task',owner:'Builder',status,priority:'high',data:{dependencies:deps,tags:[]}});
+ let t1=(await call(b+'/workspace?room='+room,'POST',{action:'create',entry:make('Foundation')})).entry;
+ let t2=(await call(b+'/workspace?room='+room,'POST',{action:'create',entry:make('Build on foundation',[t1.id])})).entry;
+ await call(b+'/workspace','POST',{action:'update',id:t2.id,revision:t2.revision,entry:make(t2.title,[t1.id],'doing')},409);
+ await call(b+'/workspace','POST',{action:'update',id:t1.id,revision:t1.revision,entry:make(t1.title,[t2.id])},409);
+ t1=(await call(b+'/workspace','POST',{action:'update',id:t1.id,revision:t1.revision,entry:make(t1.title,[],'done')})).entry;
+ t2=(await call(b+'/workspace','POST',{action:'update',id:t2.id,revision:t2.revision,entry:make(t2.title,[t1.id],'doing')})).entry;
+ await call(b+'/workspace','POST',{action:'update',id:t2.id,revision:1,entry:make(t2.title)},409);
+ await call(b+'/workspace?room='+room,'POST',{action:'create',entry:{kind:'note',title:'Shared contract',body:'Use the agreed delivery events.'}});
+ await call(b+'/workspace?room='+room,'POST',{action:'create',entry:{kind:'decision',title:'Choose safe routes',body:'Keep the depot road dry.'}});
+ await call(b+'/workspace?room='+room,'POST',{action:'create',entry:{kind:'bookmark',title:'Docs',body:'Reference',data:{url:'javascript:alert(1)'}}},400);
+ const handoff=(await call(b+'/workspace?room='+room,'POST',{action:'handoff'})).entry;assert(handoff.body.includes('Build on foundation'));assert(handoff.body.includes('Choose safe routes'));
+ await call(b+'/workspace?room='+room,'POST',{action:'heartbeat',agent:'Builder',task:'Foundation'});assert((await call(b+'/workspace?kind=presence&room='+room)).agents.some(a=>a.task==='Foundation'));
+ const message=(await call(b+'/room?room='+room,'POST',{agent:'Owner',text:'A searchable **contract**.'},201)).message;
+ await call(b+'/room?room='+room,'POST',{agent:'Builder',text:'Reply to the contract.',replyTo:message.id},201);
+ await call(b+'/room?room='+room,'POST',{action:'pin',id:message.id});assert((await call(b+'/room?room='+room+'&pinned=1')).messages.some(m=>m.id===message.id));
+ await call(b+'/room?room='+room,'POST',{action:'edit',id:message.id,text:'An edited searchable contract.'});assert((await call(b+'/room?room='+room+'&q=edited')).messages.some(m=>m.id===message.id));
+ const exportResponse=await fetch(b+'/room?room='+room+'&format=md');assert(exportResponse.ok);assert((await exportResponse.text()).includes('edited searchable contract'));
+ await call(b+'/room?room='+room,'POST',{agent:'Owner',text:'Remote owner spoof'},403,{'cf-ray':'remote'});
+ const checkpoint=(await call(b+'/workspace?room='+room,'POST',{action:'checkpoint',title:'Before work',paths:['ServerScriptService/Owned/Main']})).entry;assert.equal(checkpoint.data.scripts[0].source,"print('original')");
+ sources.set('ServerScriptService/Owned/Main',"print('changed')");const restored=await call(b+'/workspace','POST',{action:'restore',id:checkpoint.id});assert(restored.ok);assert.equal(sources.get('ServerScriptService/Owned/Main'),"print('original')");
+ const checks=(await call(b+'/workspace','POST',{action:'check',paths:['ServerScriptService/Owned/Main','Missing/Script']})).entry;assert.equal(checks.data.passed,false);
+ settings.modules.reviewQueue=true;await call(b+'/features','PATCH',{settings});
+ const mcpReview=await call(b+'/tools','POST',{server:'studio',name:'create_instance',arguments:{className:'Folder',parent:'Workspace',name:'ReviewFixture',_agent:'Builder',_room:room}});assert.equal(mcpReview.isError,false);const mcpProposal=JSON.parse(mcpReview.content[0].text);assert.equal(mcpProposal.status,'review');await call(b+'/reviews','POST',{action:'reject',id:mcpProposal.id});
+ let proposal=await call(b+'/command','POST',{type:'set_source',payload:{path:'ServerScriptService/Owned/Main',source:"print('approved')"},agent:'Builder',room},202);assert.equal(proposal.status,'review');assert.equal(sources.get('ServerScriptService/Owned/Main'),"print('original')");
+ const reviews=await call(b+'/reviews');assert(reviews.reviews.some(r=>r.id===proposal.id&&r.before[0].source==="print('original')"));
+ await call(b+'/reviews','POST',{action:'approve',id:proposal.id});
+ for(let n=0;n<50;n++){if((await call(b+'/commands?id='+proposal.id)).status==='done')break;await new Promise(r=>setTimeout(r,100));}assert.equal(sources.get('ServerScriptService/Owned/Main'),"print('approved')");
+ proposal=await call(b+'/command','POST',{type:'set_source',payload:{path:'ServerScriptService/Owned/Main',source:'stale proposal'},agent:'Builder',room},202);sources.set('ServerScriptService/Owned/Main','concurrent change');await call(b+'/reviews','POST',{action:'approve',id:proposal.id},409);await call(b+'/reviews','POST',{action:'reject',id:proposal.id});assert.equal((await call(b+'/commands?id='+proposal.id)).status,'error');
+ await call(b+'/control','POST',{paused:true});await call(b+'/command','POST',{type:'get_tree'},423);assert.equal((await call(host+'/api/plugin/poll','POST',{noWait:false},200,{'x-plugin-key':key})).commands.length,0);await call(b+'/control','POST',{paused:false});
+ settings.modules.reviewQueue=false;settings.modules.rolePlanning=true;settings.modules.protectedPaths=true;await call(b+'/features','PATCH',{settings});await call(b+'/room/team?room='+room,'POST',{action:'configure',expected:1});await call(b+'/room/team?room='+room,'POST',{action:'join',agent:'Builder',role:'Owned scripts',paths:['ServerScriptService/Owned']});await call(b+'/room/team?room='+room,'POST',{action:'ready',agent:'Builder'});
+ await call(b+'/command','POST',{type:'set_source',payload:{path:'ServerScriptService/Other',source:'wrong scope'},agent:'Builder',room},403);await call(b+'/command','POST',{type:'run_luau',payload:{code:'return true'},agent:'Builder',room},403);await call(b+'/command','POST',{type:'batch',payload:{commands:[{type:'run_luau',payload:{code:'return true'}}]},agent:'Builder',room},403);
+ assert((await call(b+'/command','POST',{type:'set_source',payload:{path:'ServerScriptService/Owned/Main',source:'protected edit'},agent:'Builder',room})).ok);
+ settings.modules.notes=false;settings.modules.messagePins=false;settings.modules.checkpoints=false;await call(b+'/features','PATCH',{settings});await call(b+'/workspace?kind=note','GET',undefined,403);await call(b+'/workspace','POST',{action:'create',entry:{kind:'note',title:'Disabled'}},403);await call(b+'/room?room='+room,'POST',{action:'pin',id:message.id},403);await call(b+'/workspace','POST',{action:'restore',id:checkpoint.id},403);
+ const overview=await call(b+'/workspace?kind=overview');assert(overview.commands.total>0);assert.equal(overview.tasks.total,2);
+ console.log('PASS: dependencies/cycles, revision conflicts, notes/decisions/handoffs, bookmarks, presence, search/replies/pins/edit/export, source checkpoints and restore, structural checks, real review dispatch and stale-review rejection, pause, protected paths/batches, module disable enforcement and insights. All Studio commands used a disposable simulator.');
+}finally{stopped=true;abort.abort();await worker?.catch(()=>{});await call(b,'DELETE');await pool.end();}

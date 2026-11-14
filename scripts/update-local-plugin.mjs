@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';import {readFileSync,writeFileSync,copyFileSync} from 'node:fs';import path from 'node:path';import lua from '../.local-runtime/node_modules/luaparse/luaparse.js';
+const base='http://127.0.0.1:3000';
+const created=await fetch(base+'/api/connections',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Disposable plugin upgrade verification'})});assert(created.ok);const {token}=await created.json();
+try {
+ async function download(format){const r=await fetch(base+'/api/plugin/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,origin:'https://changed-tunnel.example',format})});assert(r.ok);return r.text();}
+ const source=await download('lua');assert(source.includes('local SERVER_URL = "http://127.0.0.1:3000"'));assert(!source.includes('changed-tunnel.example'));assert(source.includes('Save / pair and reconnect'));assert(source.includes('plugin:GetSetting(PAIR_SETTING)'));assert(source.includes('plugin:SetSetting(PAIR_SETTING, { server = address, key = newKey })'));lua.parse(source,{luaVersion:'5.1'});
+ const pair=await fetch(base+'/api/plugin/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});assert(pair.ok);const paired=await pair.json();assert(source.includes('local PLUGIN_KEY = "'+paired.key+'"'));
+ const blocked=await fetch(base+'/api/plugin/pair',{method:'POST',headers:{'Content-Type':'application/json','cf-ray':'simulated-public-request'},body:JSON.stringify({token})});assert.equal(blocked.status,403);
+ const installed=path.join(process.env.LOCALAPPDATA,'Roblox','Plugins','StudioLink.rbxmx');const old=readFileSync(installed,'utf8');const oldKey=old.match(/local PLUGIN_KEY = "([^"]+)"/)?.[1];assert(oldKey);
+ const newXml=(await download('rbxmx')).replace('local PLUGIN_KEY = "'+paired.key+'"','local PLUGIN_KEY = "'+oldKey+'"');assert(newXml.includes('local PLUGIN_KEY = "'+oldKey+'"'));copyFileSync(installed,'.local-runtime/plugin-before-local-address.rbxmx');writeFileSync(installed,newXml);assert(readFileSync(installed,'utf8').includes('local SERVER_URL = "http://127.0.0.1:3000"'));
+ console.log('Lua syntax, stable local URL, pairing exchange and public pairing rejection passed. Installed plugin updated in place; original project key preserved.');
+} finally {await fetch(base+'/api/agent/'+token,{method:'DELETE'});}
