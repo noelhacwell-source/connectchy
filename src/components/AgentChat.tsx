@@ -4,6 +4,8 @@ import {
   ChatToolbox,
   CopyableCode,
 } from "./ChatEnhancements";
+import AgentWindow from "./AgentWindow";
+import { AgentAvatar } from "./AgentAvatar";
 import {
   EMPTY_FILTERS,
   type ChatFilters,
@@ -17,12 +19,15 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  Fragment,
 } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   ArrowUp,
+  ArrowDown,
   AtSign,
+  Bot,
   ChevronDown,
   Copy,
   Download,
@@ -70,27 +75,36 @@ type ChatData = {
   attention: { unacknowledgedPings: ChatMessage[] };
   room: { name: string; active: boolean };
 };
-export function AgentAvatar({
-  name,
-  size = "md",
-}: {
-  name: string;
-  size?: "sm" | "md";
-}) {
-  let hue = 0;
-  for (const c of name) hue = (hue * 31 + c.charCodeAt(0)) % 360;
-  return (
-    <span
-      className={`agent-avatar ${size}`}
-      style={{
-        background: `hsl(${hue} 28% 20%)`,
-        color: `hsl(${hue} 65% 78%)`,
-      }}
-    >
-      {name === "Owner" ? "Y" : name.slice(0, 2).toUpperCase()}
-    </span>
-  );
+function subscribeWide(callback: () => void) {
+  const query = window.matchMedia("(min-width: 1280px)");
+  query.addEventListener("change", callback);
+  return () => query.removeEventListener("change", callback);
 }
+
+const SLASH_COMMANDS = [
+  { cmd: "/help", desc: "List the chat commands" },
+  { cmd: "/task", desc: "Create a task from your message" },
+  { cmd: "/note", desc: "Save your text to the notebook" },
+  { cmd: "/decision", desc: "Record a decision for the team" },
+  { cmd: "/stop", desc: "Ask every agent to stop working" },
+  { cmd: "/clear", desc: "Clear this draft" },
+  { cmd: "/export", desc: "Download the room · md or json" },
+];
+
+function daySeparatorLabel(iso: string): string {
+  const day = new Date(iso),
+    now = new Date(),
+    yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (day.toDateString() === now.toDateString()) return "Today";
+  if (day.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return day.toLocaleDateString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export default function AgentChat({
   token,
   roomId,
@@ -100,6 +114,8 @@ export default function AgentChat({
   enabled,
   onTeam,
   activate,
+  studio,
+  focusAgent,
 }: {
   token: string;
   roomId: number;
@@ -109,6 +125,8 @@ export default function AgentChat({
   enabled: ModuleSettings;
   onTeam: (team: TeamPlan) => void;
   activate: () => void;
+  studio: { online: boolean; placeName: string | null; paused: boolean };
+  focusAgent: (agent: string) => void;
 }) {
   const base = `/api/agent/${token}/room`,
     suffix = `?room=${roomId}`;
@@ -136,13 +154,24 @@ export default function AgentChat({
     [urgentDraft, setUrgentDraft] = useState(false),
     [labelDraft, setLabelDraft] = useState(""),
     [sendMode, setSendMode] = useState("enter"),
-    [soundOn, setSoundOn] = useState(false);
+    [soundOn, setSoundOn] = useState(false),
+    [agentWin, setAgentWin] = useState<boolean | null>(null),
+    [atBottom, setAtBottom] = useState(true),
+    [unread, setUnread] = useState(0),
+    [draftSaved, setDraftSaved] = useState(false);
   const soundContext = useRef<AudioContext | null>(null);
+  const draftTimer = useRef<number | null>(null);
+  const wide = useSyncExternalStore(
+    subscribeWide,
+    () => window.matchMedia("(min-width: 1280px)").matches,
+    () => false,
+  );
+  const agentWindowOpen = agentWin ?? wide;
   const [presence, setPresence] = useState<
     { agent: string; task: string; lastSeenAt: string }[]
   >([]);
   useEffect(() => {
-    if (!enabled.agentPresence || !showTeam) return;
+    if (!enabled.agentPresence || (!showTeam && !agentWindowOpen)) return;
     let live = true;
     const poll = () =>
       requestJson<{ agents: typeof presence }>(
@@ -158,7 +187,7 @@ export default function AgentChat({
       live = false;
       clearInterval(t);
     };
-  }, [token, roomId, enabled.agentPresence, showTeam]);
+  }, [token, roomId, enabled.agentPresence, showTeam, agentWindowOpen]);
   const list = useRef<HTMLDivElement>(null),
     input = useRef<HTMLTextAreaElement>(null),
     last = useRef(0),
@@ -179,10 +208,14 @@ export default function AgentChat({
   const text = draftText ?? storedDraft;
   const draft = (value: string) => {
     setDraftText(value);
-    if (enabled.draftSaving)
+    if (enabled.draftSaving) {
       try {
         localStorage.setItem(draftKey, value);
       } catch {}
+      setDraftSaved(true);
+      if (draftTimer.current) clearTimeout(draftTimer.current);
+      draftTimer.current = window.setTimeout(() => setDraftSaved(false), 1800);
+    }
   };
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search), 250);
@@ -297,6 +330,11 @@ export default function AgentChat({
             behavior: "smooth",
           }),
         );
+      if (nearBottom || query) setUnread(0);
+      else if (last.current && d.nextCursor > last.current) {
+        const added = d.messages.filter((m) => m.id > last.current).length;
+        setUnread((u) => u + (added || 1));
+      }
       last.current = d.nextCursor;
     },
     [url, query, selectedAgent, pins, onTeam, enabled.chatSounds, soundOn],
@@ -342,8 +380,19 @@ export default function AgentChat({
         const value = rest.join(" ").trim();
         if (command === "/help") {
           setError(
-            "Commands: /task title, /note text, /decision text, /stop. Slash commands create workspace items or request an owner stop; ordinary messages are shared with agents.",
+            "Commands: /task title, /note text, /decision text, /stop, /clear, /export md|json. Slash commands create workspace items or local actions; ordinary messages are shared with agents.",
           );
+          return;
+        }
+        if (command === "/clear") {
+          draft("");
+          setDraftSaved(false);
+          input.current?.focus();
+          return;
+        }
+        if (command === "/export") {
+          draft("");
+          await exportRoom(value === "json" ? "json" : "md");
           return;
         }
         if (command === "/stop") {
@@ -487,6 +536,15 @@ export default function AgentChat({
             >
               + Agent
             </button>
+            <button
+              className={`icon-button ${agentWindowOpen ? "selected" : ""}`}
+              aria-label="Agent window"
+              aria-pressed={agentWindowOpen}
+              title="Agent window — who is working and what just ran"
+              onClick={() => setAgentWin(!agentWindowOpen)}
+            >
+              <Bot size={17} />
+            </button>
             <ChatToolbox
               token={token}
               roomId={roomId}
@@ -602,6 +660,13 @@ export default function AgentChat({
           className="chat-scroll"
           role="log"
           aria-label="AI conversation"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            const near =
+              el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+            setAtBottom(near);
+            if (near && unread) setUnread(0);
+          }}
         >
           <div className="message-column">
             {hasOlder && !query && !pins && messages.length > 0 && (
@@ -683,11 +748,30 @@ export default function AgentChat({
                 </span>
               </div>
             )}
-            {messages.map((message) => (
-              <article
-                key={message.id}
-                className={`chat-message ${message.agent === "Owner" ? "from-owner" : ""} ${pingIds.has(message.id) && enabled.pingInbox ? "mentioned" : ""} ${enabled.compactMessages ? "compact" : ""}`}
-              >
+            {messages.map((message, index) => {
+              const previous = messages[index - 1];
+              const day = new Date(message.createdAt).toDateString();
+              const previousDay = previous
+                ? new Date(previous.createdAt).toDateString()
+                : null;
+              const grouped =
+                !!previous &&
+                previousDay === day &&
+                previous.agent === message.agent &&
+                !message.replyTo &&
+                Date.parse(message.createdAt) -
+                  Date.parse(previous.createdAt) <
+                  150_000;
+              return (
+                <Fragment key={message.id}>
+                  {previousDay !== day && (
+                    <div className="day-separator">
+                      <span>{daySeparatorLabel(message.createdAt)}</span>
+                    </div>
+                  )}
+                  <article
+                    className={`chat-message ${message.agent === "Owner" ? "from-owner" : ""} ${pingIds.has(message.id) && enabled.pingInbox ? "mentioned" : ""} ${enabled.compactMessages ? "compact" : ""} ${grouped ? "grouped" : ""}`}
+                  >
                 <AgentAvatar name={message.agent} />
                 <div className="message-content">
                   <div className="message-meta">
@@ -900,10 +984,29 @@ export default function AgentChat({
                     )}
                   </div>
                 </div>
-              </article>
-            ))}
+                  </article>
+                </Fragment>
+              );
+            })}
           </div>
         </div>
+        {!atBottom && (
+          <button
+            className="jump-latest"
+            onClick={() => {
+              list.current?.scrollTo({
+                top: list.current.scrollHeight,
+                behavior: "smooth",
+              });
+              setUnread(0);
+              setAtBottom(true);
+            }}
+          >
+            <ArrowDown size={14} />
+            Jump to latest
+            {unread > 0 && <span className="jump-count">{unread}</span>}
+          </button>
+        )}
         <div className="composer-area">
           {error && (
             <div className="mb-2">
@@ -1015,6 +1118,32 @@ export default function AgentChat({
                 </button>
               </div>
             )}
+            {enabled.chatSlashCommands &&
+              active &&
+              text.startsWith("/") &&
+              !/\s/.test(text.trim()) &&
+              SLASH_COMMANDS.filter((s) => s.cmd.startsWith(text.trim()))
+                .length > 0 && (
+                <div className="slash-menu" role="listbox">
+                  <p className="slash-title">COMMANDS</p>
+                  {SLASH_COMMANDS.filter((s) => s.cmd.startsWith(text.trim())).map(
+                    (s) => (
+                      <button
+                        key={s.cmd}
+                        role="option"
+                        aria-selected="false"
+                        onClick={() => {
+                          draft(`${s.cmd} `);
+                          input.current?.focus();
+                        }}
+                      >
+                        <code>{s.cmd}</code>
+                        <span>{s.desc}</span>
+                      </button>
+                    ),
+                  )}
+                </div>
+              )}
             <textarea
               ref={input}
               aria-label="Message the agents"
@@ -1087,6 +1216,11 @@ export default function AgentChat({
                     {soundOn ? "Mute tones" : "Enable tones"}
                   </button>
                 )}
+                {draftSaved && (
+                  <span className="draft-saved">
+                    <Check size={11} /> Draft saved
+                  </span>
+                )}
                 <span className="text-xs text-dim">
                   {text.length
                     ? `${text.length}/6000${enabled.chatWordCount ? ` · ${text.trim().split(/\s+/).filter(Boolean).length} words` : ""}`
@@ -1099,16 +1233,51 @@ export default function AgentChat({
                 disabled={busy || !active || !text.trim()}
                 onClick={() => void send()}
               >
+                {text.length > 0 && (
+                  <svg className="send-ring" viewBox="0 0 40 40" aria-hidden="true">
+                    <circle
+                      className="send-ring-track"
+                      cx="20"
+                      cy="20"
+                      r="17"
+                    />
+                    <circle
+                      className={`send-ring-fill ${text.length >= 6000 ? "full" : ""}`}
+                      cx="20"
+                      cy="20"
+                      r="17"
+                      strokeDasharray={`${Math.min(1, text.length / 6000) * 106.8} 106.8`}
+                    />
+                  </svg>
+                )}
                 <ArrowUp size={18} />
               </button>
             </div>
           </div>
           <p className="composer-hint">
             Your AIs check this room through Connectchy. Keep their clients
-            running.
+            running · <kbd>⌘K</kbd> opens the command palette · type{" "}
+            <kbd>/</kbd> for commands
           </p>
         </div>
       </div>
+      {agentWindowOpen && (
+        <AgentWindow
+          token={token}
+          roomName={roomName}
+          online={studio.online}
+          placeName={studio.placeName}
+          paused={studio.paused}
+          team={team}
+          presence={presence}
+          enabled={enabled}
+          busy={busy}
+          onFocus={focusAgent}
+          onPing={ping}
+          onManage={manageAgent}
+          onClose={() => setAgentWin(false)}
+        />
+      )}
       {showTeam && (
         <aside className="team-pane">
           <div className="flex items-center justify-between">

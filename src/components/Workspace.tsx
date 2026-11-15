@@ -1,7 +1,9 @@
 "use client";
 import GameReferences from "./GameReferences";
 import WorkspaceDialog from "./WorkspaceDialog";
+import CommandPalette, { type PaletteAction } from "./CommandPalette";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -46,12 +48,14 @@ import {
   PanelLeftClose,
   Link2,
   FileText,
+  PanelLeft,
 } from "lucide-react";
 import { rememberConnection, type Status } from "@/lib/client";
 import { modules, type ModuleId } from "@/lib/modules";
 import { DEFAULT_TEAM, type TeamPlan } from "@/lib/team-types";
 import { requestJson, postJson, type EntryKind } from "@/lib/workspace-client";
-import AgentChat, { AgentAvatar } from "./AgentChat";
+import AgentChat from "./AgentChat";
+import { AgentAvatar } from "./AgentAvatar";
 import FeatureControls from "./FeatureControls";
 import WorkspaceTools, { AssetLibrary, ReviewPanel } from "./WorkspaceTools";
 import SetupPanel from "./SetupPanel";
@@ -138,7 +142,9 @@ export default function Workspace({ token }: { token: string }) {
     } | null>(null),
     [busy, setBusy] = useState(false),
     [archived, setArchived] = useState<Room[] | null>(null),
-    [agentMenu, setAgentMenu] = useState(false);
+    [agentMenu, setAgentMenu] = useState(false),
+    [paletteOpen, setPaletteOpen] = useState(false);
+  const router = useRouter();
   const desktop = useSyncExternalStore(
       subscribeDesktop,
       () => window.matchMedia("(min-width: 801px)").matches,
@@ -262,6 +268,102 @@ export default function Workspace({ token }: { token: string }) {
     setSelectedAgent("");
     if (window.innerWidth < 800) setSidebar(false);
   };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const paletteActions: PaletteAction[] = [
+    ...NAV.filter((n) => enabled[n.feature as ModuleId]).map((n) => ({
+      id: `view:${n.id}`,
+      label: n.name,
+      hint: "View",
+      icon: n.icon,
+      run: () => {
+        setView(n.id);
+        if (window.innerWidth < 800) setSidebar(false);
+      },
+    })),
+    ...rooms
+      .filter((r) => !r.deletedAt)
+      .map((r) => ({
+        id: `room:${r.id}`,
+        label: `#${r.name}`,
+        hint: r.id === activeId ? "Room · active" : "Room",
+        icon: Hash,
+        run: () => selectRoom(r),
+      })),
+    ...team.participants.map((p) => ({
+      id: `agent:${p.agent}`,
+      label: `Focus ${p.agent}`,
+      hint: p.role,
+      icon: Users,
+      run: () => {
+        setSelectedAgent(p.agent);
+        setView("chat");
+      },
+    })),
+    {
+      id: "action:all-agents",
+      label: "Show all agents",
+      hint: "Chat",
+      icon: Users,
+      run: () => {
+        setSelectedAgent("");
+        setView("chat");
+      },
+    },
+    {
+      id: "action:sidebar",
+      label: sidebarOpen ? "Hide sidebar" : "Show sidebar",
+      hint: "Layout",
+      icon: PanelLeft,
+      run: () => setSidebar(!sidebarOpen),
+    },
+    {
+      id: "action:settings",
+      label: "Workspace settings",
+      hint: "Features & connection",
+      icon: Settings2,
+      run: () => setSettings("features"),
+    },
+    ...((enabled.pauseControl || status?.paused)
+      ? [
+          {
+            id: "action:pause",
+            label: status?.paused ? "Resume project" : "Stop all agents",
+            hint: "Control",
+            icon: status?.paused ? Play : Pause,
+            run: () => void pause(),
+          },
+        ]
+      : []),
+    ...((enabled.roomManagement)
+      ? [
+          {
+            id: "action:new-room",
+            label: "Create a room",
+            hint: "Chat",
+            icon: Plus,
+            run: () => setRoomEdit({ action: "create", name: "" }),
+          },
+        ]
+      : []),
+    {
+      id: "action:projects",
+      label: "Back to projects",
+      hint: "Home",
+      icon: ArrowLeft,
+      run: () => {
+        router.push("/");
+      },
+    },
+  ];
   if (missing)
     return (
       <main className="missing-project">
@@ -379,6 +481,14 @@ export default function Workspace({ token }: { token: string }) {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            aria-label="Command palette"
+            title="Command palette (⌘K)"
+            className="icon-button topbar-search"
+            onClick={() => setPaletteOpen(true)}
+          >
+            <Search size={17} />
+          </button>
           {(enabled.pauseControl || status?.paused) && (
             <button
               title={
@@ -638,6 +748,15 @@ export default function Workspace({ token }: { token: string }) {
                 enabled={enabled}
                 onTeam={updateTeam}
                 activate={() => void roomAction("activate", selected.id)}
+                studio={{
+                  online: status.online,
+                  placeName: status.placeName,
+                  paused: !!status.paused,
+                }}
+                focusAgent={(name) => {
+                  setSelectedAgent(name);
+                  setView("chat");
+                }}
               />
             ) : status.features.room ? (
               <div className="workspace-loading">
@@ -866,6 +985,12 @@ export default function Workspace({ token }: { token: string }) {
           </div>
         </WorkspaceDialog>
       )}
+      <CommandPalette
+        key={paletteOpen ? "palette-open" : "palette-closed"}
+        open={paletteOpen}
+        close={() => setPaletteOpen(false)}
+        actions={paletteActions}
+      />
     </div>
   );
 }
