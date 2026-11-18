@@ -1,5 +1,7 @@
 # Connectchy
 
+**First time on Windows?** Follow the [copy-and-paste Windows setup guide](WINDOWS-SETUP.md) to install the database, download the tunnel tool, start the app and connect your editor.
+
 Connect an AI agent to an open Roblox Studio session. One plugin file in Studio, one private
 link for the AI. The agent can read the whole game, create and edit instances, write scripts
 and GUIs, insert Creator Store assets, and rename, move or delete anything.
@@ -46,7 +48,7 @@ do not recreate deleted scripts or restore instances, properties, models or terr
 preflights script paths and sends one batch; a runtime failure can still yield a partial restore
 and is reported. Checks verify readable paths, not code compilation or gameplay. Room handoffs
 are factual stored snapshots, not generated AI summaries. Presence is self-reported room checks,
-not proof an AI process is running. Connectchy does not start AI clients or run models.
+not proof an AI process is running. Link-connected clients poll independently. Imported models can respond when you use **Ask an agent**.
 
 ## Agent API
 
@@ -91,7 +93,7 @@ generation and already-running Luau cannot be forcibly interrupted. Agent names 
 
 ## Limits
 
-- Studio must be open. The app does not publish games or perform play tests automatically.
+- Studio must be open. The app does not publish games. Plugin 1.3.0+ supports `run_playtest` for timed Play/Run sessions, server assertions, bounded output, and automatic cleanup. Console shows AI playtesting availability. Agents request tests over HTTP or MCP; the Studio plugin has Connect/Disconnect controls. Check `result.passed`; a successfully delivered command can contain a failed test. Tests take 1–60 seconds plus Studio startup; poll `/commands?id=` after a pending response. Owner Stop is honored inside tests when game HTTP requests are enabled; Studio's Stop also works. This does not automate mouse/keyboard inputs or verify visual layout.
 - Optional Roblox Open Cloud uploads support images, models, and audio (MP3/OGG/WAV/FLAC).
   They require your own Roblox credentials, upload permissions, moderation approval and quota.
   Private audio may need experience permissions. Uploads persist on Roblox independently of Studio undo.
@@ -136,8 +138,7 @@ Each room preserves its own messages, ping acknowledgements and role plan. Exist
 history is migrated to **Main room** on first access. Older rooms can be read and paged backward
 with **Load older messages**. Browsing an older room does not move AIs into it; **Use this room
 for AI work** changes the project's active room. Only one room is active for work at a time.
-Deleted rooms are hidden/soft-deleted; at least one room must remain. Deleting an active room
-selects another remaining room. These actions do not undo or delete anything in Roblox Studio.
+Archiving preserves a room for restoration. **Delete permanently** removes the room and its scoped records, including private conversations and video attachments. Removing the last room creates a fresh Main room. These actions do not undo or delete anything in Roblox Studio.
 Agents list `/rooms`, use `?room=<id>` on room and team requests, and pin top-level `room` on
 Studio edit calls (`_room` for MCP). Multiple-room projects require that pin to avoid accidentally
 editing under a different room's plan after the owner switches rooms.
@@ -200,3 +201,43 @@ upstream responses; it never creates a real Roblox asset. Real Roblox upload and
 must be checked after the owner supplies valid credentials and an appropriate file.
 
 Workspace verification uses a disposable simulated Studio session to exercise actual command queues, reviews, stale proposals, checkpoints/restores, pause, typed path protection, task dependencies, message features and disabled APIs. It never changes the owner’s open Studio game. The production build and browser checks cover desktop and narrow layouts.
+
+## VS Code workspaces
+
+On the home page select **Visual Studio Code** when creating a workspace. The existing room conversation, expected AI count, roles, team controls, tasks and notes are reused. Workspace mode is fixed at creation; Roblox workspaces keep their behavior.
+
+The extension source is in `extensions/connectchy-vscode`. The installable package is served at `/downloads/connectchy-vscode.vsix`. Install through VS Code's **Extensions: Install from VSIX**, open a trusted local folder, and run **Connectchy: Connect Project**. Paste the workspace link from Connection setup. In a multi-root workspace choose one folder. Connection keys are kept in VS Code SecretStorage; reconnecting requires an explicit Connect action. No AI model is bundled.
+
+Agents use the `code_*` catalog from their private link or the built-in MCP server. File reads include editor buffers and SHA-256 baselines. Existing-file edits show a diff, require approval inside VS Code, and reject stale baselines. Creates cannot overwrite existing files. File tools reject traversal, symbolic links, credential files and common build outputs. Terminal commands require approval of the exact command, run with the user's permissions, and are not a filesystem sandbox. They have a 120-second limit and bounded output. Stop/disconnect cancels active operations. The extension journals delivered commands to avoid silently replaying an interrupted edit or command. File operations require existing parent directories; large/binary files and remote/virtual workspaces are not supported by this version.
+
+Verification: `node scripts/verify-vscode.mjs` exercises mode/client isolation, two-agent coordination, command delivery/results, MCP, Stop and replacement agents. `npm test --prefix extensions/connectchy-vscode` checks file boundaries, approvals, stale edits, cancellation and process output. `extensions/connectchy-vscode/test/host-runner.js` is an extension-host smoke test, run with VS Code's `--extensionDevelopmentPath` and `--extensionTestsPath` flags against an isolated folder. Repackage using `npm run package --prefix extensions/connectchy-vscode`.
+
+## Mission Control feature release
+
+The inventory is in `FEATURES-RELEASE.md` and in the app’s **Feature catalog**. The workspace controls section lists the supported search, filter, export, and deletion operations for each record collection.
+
+**Mission Control** uses existing project/room storage; it does not require a new database table or schema migration. It has issues, milestones, project memory, reusable runbooks and frozen run instances, release acceptance/freeze controls, scored risks, dependencies, agent profiles, maintenance windows, test cases with actual command evidence, benchmarks and shared saved views. Records have optimistic revisions; imports and bulk changes are transactional. History retains the last 20 prior revisions. The board read limit is 2,000 records and displays a truncation warning; imports/bulk actions are capped at 100. Local session goals and focus timers are browser-local. Profiles use self-reported agent names rather than separate authenticated identities; per-agent quota checks and queue insertion are serialized to prevent parallel requests from exceeding limits. Release freezes and maintenance apply to new agent mutations, not already-delivered work or explicit owner actions.
+
+Agent API: `GET/POST /api/agent/<token>/workbench?room=<id>&agent=<name>`. Read `kinds` to discover board fields and lifecycle states. Agent docs include the shared workflow endpoints. Owners alone manage permission profiles, maintenance, release freezes, import and archive operations. Build/test evidence is only marked passed from an explicit `passed:true` result or a zero exit code; command delivery alone does not mean a test passed.
+
+Roblox tools require **StudioLink 1.4.0**. VS Code recovery/navigation tools require **Connectchy 0.2.0**. The installed local packages have been updated; restart Studio and reload VS Code to load them. Typed Roblox edits still use undo recording. Syntax compilation does not execute scripts and is not a gameplay test. VS Code language navigation depends on installed language providers. Local checkpoints retain ten snapshots and are not full-project backups.
+
+Verification: `verify-feature-release.mjs`, `verify-workbench-model.mjs`, `verify-mission-control.mjs`, `verify-command-budgets.mjs`, `verify-roblox-advanced.mjs`, and `verify-runtime.mjs` in `scripts`, plus the VS Code extension test suite and extension-host smoke test. The Roblox suite executes all 22 new handlers against an isolated engine fixture; a real Studio game was not available for live validation. Existing room/chat/coordination/workspace/playtest checks were also run. The framework was patched to Next.js 16.4.6; the production dependency audit reports no known vulnerabilities. Some development-only dependency advisories remain; no forced major downgrades were applied.
+## Collaboration and custom agents
+
+Open **Settings → Agents** to import a Chat Completions-compatible provider with its API base URL, model ID, key and optional instructions. Use **Ask an agent** in a room, survey, question or private chat to request a model response. Each request sends the selected conversation context to the configured provider. Keys are encrypted using the local credential key. Existing editor clients can continue using the project link.
+
+For an external client, **Link agent** issues a separate individual key for collaboration and deletion. Give that client its project link and key. It sends the key as the `X-Agent-Key` header. Rotate or remove keys from the directory. Private conversations are visible to their participants and the local owner. The owner can read, post and delete across those conversations. Removing and re-adding an agent creates a new identity.
+
+The **Videos** tab accepts MP4, WebM and MOV with a browser-supported codec. Use **Customize → Uploads** to set a workspace-wide limit in MB or choose **Unlimited**. Existing workspaces start at 500 MB. Linked agents with the project link can request shared media or sampled frames. **Ask about clip** can send up to eight JPEG frames to a vision model, or send only the caption, details and instructions to a text model. Use **Edit details** to add a description or a transcript excerpt.
+
+Workspace appearance is saved per project and browser. Use **Settings → Appearance** for custom wallpaper, dimming, image fit, position, pattern, accent and message size.
+
+The normal startup script installs the collaboration tables and adds video streaming storage for existing databases. For a fresh install, follow the database setup above. With the app running locally, run `node scripts/verify-collaboration.mjs` to exercise identity isolation, surveys, model calls, media transport and permanent cleanup against a disposable project and local provider fixture.
+### Workspace controls
+
+The **Videos** sidebar tab works in both editors and includes clips already posted to rooms. Deleting video media leaves the original chat message. **Manage records** lists each tab’s available collections and supports filtering, export, selected removal, and full-collection removal. Room collections are scoped to the selected room. Catalog and insight cards can be hidden and restored in bulk. Home and Workspace settings both have **Delete workspace**.
+
+Use **Customize** in the home or workspace toolbar to rearrange and rename navigation, move panels, change colors and typography, and adjust density. Layout and appearance are saved in this browser. The upload limit is shared across the workspace.
+
+The VS Code extension **0.3.0** adds **Enable Agent Mode** to the Connectchy sidebar. The mode applies text-file creation and updates during the current connection. Terminal commands require approval. Explorer file trashing supports up to twenty explicit project text files per reviewed batch.

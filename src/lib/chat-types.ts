@@ -1,4 +1,5 @@
 export type ChatMeta = {
+  video?: import("./studio-types").VideoInfo;
   reactions?: Record<string, string[]>;
   poll?: {
     question: string;

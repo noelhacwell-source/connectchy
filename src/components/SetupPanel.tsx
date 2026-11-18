@@ -159,7 +159,7 @@ export default function SetupPanel({ token, status }: { token: string; status: S
           </li>
           <li>
             <span className="text-signal">Needs you:</span> Studio must be open with your place loaded. Publishing the
-            game and play testing stay in your hands.
+            game stays in your hands. Agents can run timed Studio playtests with plugin 1.3.0 or newer.
           </li>
           <li>
             <span className="text-signal">Optional:</span> enable uploads in Tools &amp; uploads and connect a Roblox API key to upload new images and models. Enable the room, MCP tools and skills there too.

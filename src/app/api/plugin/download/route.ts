@@ -1,6 +1,8 @@
 import { cleanOrigin, derivePluginKey, findByToken, noStore } from "@/lib/bridge";
 import { PLUGIN_CORE } from "@/lib/plugin-core";
 import { PLUGIN_HANDLERS } from "@/lib/plugin-handlers";
+import { PLUGIN_PLAYTEST } from "@/lib/plugin-playtest";
+import {PLUGIN_ADVANCED} from "@/lib/plugin-advanced";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,7 @@ export async function POST(req: Request) {
 
   const conn = await findByToken(body.token);
   if (!conn) return Response.json({ error: "Connection not found." }, { status: 404 });
+  if (conn.features.mode === "vscode") return Response.json({error:"Use the Visual Studio VSIX extension for this workspace."},{status:400});
 
   // Studio is on this computer. Only remote agents need the changing tunnel URL.
   const port = /^\d+$/.test(process.env.PORT ?? "") ? process.env.PORT : "3000";
@@ -37,7 +40,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Could not work out this dashboard's address." }, { status: 400 });
   }
 
-  const lua = (PLUGIN_CORE + PLUGIN_HANDLERS)
+  const lua = (PLUGIN_CORE + PLUGIN_PLAYTEST + PLUGIN_ADVANCED + PLUGIN_HANDLERS)
     .replace("__SERVER_URL__", origin)
     .replace("__PLUGIN_KEY__", derivePluginKey(body.token as string));
 

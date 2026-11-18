@@ -1,0 +1,21 @@
+import type { CommandDoc } from "@/lib/command-docs";
+import {EXPANDED_CODE_COMMANDS} from "./expanded-commands";
+export const VSCODE_COMMANDS: CommandDoc[] = [
+  ...EXPANDED_CODE_COMMANDS,
+  {type:"code_trash_files",group:"Scripts",summary:"Move up to 20 explicit project text files to system trash with one VS Code approval and a checkpoint.",payload:"{ paths: string[] }",example:{paths:["src/unused.js"]}},
+  {type:"code_get_active_editor",group:"Read",summary:"Read the active editor's path, selection and unsaved state within the connected folder.",payload:"{}",example:{}},
+  {type:"code_get_diagnostics",group:"Read",summary:"Get VS Code errors and warnings for files in the connected folder.",payload:"{ path? }",example:{}},
+  {type:"code_run_command",group:"Control",summary:"Propose a terminal command in the connected folder. The user must approve the exact command locally in VS Code. Execution is limited to 120 seconds, output is capped, and Stop/disconnect terminates the process tree. Poll /commands?id while pending; never submit duplicates.",payload:"{ command, cwd?: relative directory }",example:{command:"npm test"}},
+  {type:"code_get_workspace",group:"Read",summary:"Describe the connected VS Code workspace and supported operations.",payload:"{}",example:{}},
+  {type:"code_list_files",group:"Read",summary:"List files under the project root, excluding secrets, build outputs and links. Maximum 2000 files.",payload:"{ path?: relative directory }",example:{}},
+  {type:"code_read_file",group:"Read",summary:"Read UTF-8 text and its SHA-256 baseline. Open editor buffers are read through VS Code, including unsaved edits.",payload:"{ path }",example:{path:"Program.cs"}},
+  {type:"code_search_files",group:"Read",summary:"Search project text for a literal string; returns at most 100 matching lines.",payload:"{ text, path?: relative directory }",example:{text:"TODO"}},
+  {type:"code_write_file",group:"Scripts",summary:"Replace an existing file using the exact SHA-256 returned by code_read_file. Follows the editor’s Agent Mode setting and saves the edit in VS Code. Rejects a stale baseline.",payload:"{ path, content, expectedSha256 }",example:{path:"Program.cs",content:"// Updated code\n",expectedSha256:"hash from code_read_file"}},
+  {type:"code_create_file",group:"Build",summary:"Create a new UTF-8 file inside the project root according to the current Agent Mode setting. Never overwrites existing files.",payload:"{ path, content }",example:{path:"Notes/plan.md",content:"# Plan\n"}},
+  {type:"code_build",group:"Control",summary:"Run dotnet build on the connected project folder after local approval. Returns bounded output and exit code. Poll /commands?id while pending; do not repeat. Does not support arbitrary shell commands.",payload:"{}",example:{}},
+  {type:"code_test",group:"Control",summary:"Run dotnet test on the connected project folder after local approval. Returns bounded output and exit code. Check exitCode, not just command ok. Poll /commands?id while pending.",payload:"{}",example:{}},
+];
+export const isVSCode = (features: {mode?:string}) => features.mode === "vscode";
+export function vsCodeDocs(base:string,name:string,online:boolean) {
+  return `# Connectchy — Visual Studio Code\nProject: ${name}\nEditor: ${online?"online":"offline"}\nThis workspace controls the folder selected in VS Code.\n\nPOST ${base}/command with {type,payload,agent,room,nonce,wait:false}. Poll GET ${base}/commands?id=<id> until done/error. Use the same nonce on retries. Never send Roblox commands.\n\n${VSCODE_COMMANDS.map(c=>`- ${c.type} ${c.payload}\n  ${c.summary}`).join("\n")}\n\nPaths are relative to the selected project folder. Secret files, symlinks and build outputs are excluded from file tools. Terminal commands execute with the user's permissions and can access outside that folder: the user must approve the exact command in VS Code. Check code_get_workspace for Agent Mode. Existing-file edits require an exact current SHA-256 baseline. The owner can enable Agent Mode from the VS Code sidebar to permit automatic text-file creation and updates. Do not bypass declined operations. Agent roles, expected count, protected paths, review queue and Stop controls still apply. Poll pending commands instead of resubmitting. Check exitCode, not just command ok, for builds/tests.\n`;
+}

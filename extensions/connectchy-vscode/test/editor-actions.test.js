@@ -1,0 +1,40 @@
+'use strict';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const vm=require('node:vm');
+const {createRequire}=require('node:module');
+const {ProjectFiles,sha}=require('../src/project-files');
+test('approved edits, declined edits, stale baselines and Stop',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'connectchy-editor-'));const file=path.join(root,'main.js');await fs.writeFile(file,'original');
+  let approval='Approve',stopped=false,onApproval;
+  const docs=new Map();
+  const vscode={workspace:{isTrusted:true,workspaceFolders:[{uri:{scheme:'file',fsPath:root}}],async openTextDocument(uri){if(!docs.has(uri.fsPath)){let text=await fs.readFile(uri.fsPath,'utf8');docs.set(uri.fsPath,{isDirty:false,getText:()=>text,positionAt:n=>n,replace:value=>{text=value;},save:()=>fs.writeFile(uri.fsPath,text).then(()=>true)});}return docs.get(uri.fsPath);},async applyEdit(edit){for(const op of edit.ops){if(op.create){await fs.writeFile(op.uri.fsPath,'',{flag:'wx'});}const doc=await this.openTextDocument(op.uri);doc.replace(op.content);}return true;}},window:{async showWarningMessage(){if(onApproval)await onApproval();return approval;}},commands:{async executeCommand(){}},Uri:{file:fsPath=>({fsPath}),parse:value=>({toString:()=>value})},Position:class{},Range:class{},WorkspaceEdit:class{ops=[];replace(uri,range,content){this.ops.push({uri,content});}createFile(uri){this.ops.push({create:true,uri,content:''});}insert(uri,position,content){this.ops.push({uri,content});}}};
+  const sourcePath=path.join(__dirname,'../src/extension.js'),localRequire=createRequire(sourcePath);
+  const s={root,files:new ProjectFiles(root),server:'http://test',key:'test',abort:new AbortController()};
+  const sandbox={require:name=>name==='vscode'?vscode:localRequire(name),module:{exports:{}},Buffer,URL,AbortSignal,AbortController,setTimeout,clearTimeout,setInterval,clearInterval,testSession:s,fetch:async()=>({ok:true,json:async()=>({paused:stopped})})};
+  vm.createContext(sandbox);vm.runInContext((await fs.readFile(sourcePath,'utf8'))+'\nsession=testSession; module.exports.testExecute=execute;',sandbox);
+  const run=(type,payload)=>sandbox.module.exports.testExecute(s,{id:1,type,payload,agent:'Builder'},new AbortController().signal);
+  try {
+    const read=await run('code_read_file',{path:'main.js'});assert.equal(read.sha256,sha('original'));
+    approval=undefined;await assert.rejects(()=>run('code_write_file',{path:'main.js',content:'declined',expectedSha256:read.sha256}));assert.equal(await fs.readFile(file,'utf8'),'original');
+    approval='Approve';await assert.rejects(()=>run('code_write_file',{path:'main.js',content:'bad',expectedSha256:'wrong'}));
+    onApproval=async()=>docs.get(file).replace('local unsaved change');
+    await assert.rejects(()=>run('code_write_file',{path:'main.js',content:'stale',expectedSha256:read.sha256}));assert.equal(await fs.readFile(file,'utf8'),'original');
+    onApproval=undefined;const updated=await run('code_read_file',{path:'main.js'});
+    const result=await run('code_write_file',{path:'main.js',content:'approved',expectedSha256:updated.sha256});assert.equal(result.saved,true);assert.equal(await fs.readFile(file,'utf8'),'approved');
+    const created=await run('code_create_file',{path:'new.js',content:'new file'});assert.equal(created.saved,true);await assert.rejects(()=>run('code_create_file',{path:'new.js',content:'overwrite'}));
+    approval=undefined;s.agentMode=true;
+    const workspace=await run('code_get_workspace',{});assert.equal(workspace.editsRequireApproval,false);assert.equal(workspace.terminalRequiresApproval,true);
+    const automatic=await run('code_create_file',{path:'automatic.js',content:'agent mode'});assert.equal(automatic.approval,'agent-mode');
+    const automaticUpdate=await run('code_write_file',{path:'automatic.js',content:'updated',expectedSha256:automatic.sha256});
+    assert.equal(automaticUpdate.approval,'agent-mode');assert.equal(await fs.readFile(path.join(root,'automatic.js'),'utf8'),'updated');
+    await assert.rejects(()=>run('code_run_command',{command:'node --version'}),/Declined/);
+    s.agentMode=false;await assert.rejects(()=>run('code_create_file',{path:'back-in-review.js',content:'reviewed'}),/Declined/);
+    stopped=true;await assert.rejects(()=>run('code_read_file',{path:'main.js'}));stopped=false;
+    await assert.rejects(()=>run('code_read_file',{path:'../outside'}));
+    vscode.workspace.isTrusted=false;await assert.rejects(()=>run('code_read_file',{path:'main.js'}));
+  } finally {await fs.rm(root,{recursive:true,force:true});}
+});

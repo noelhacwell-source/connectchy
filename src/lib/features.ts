@@ -2,6 +2,7 @@ import { DEFAULT_MODULES, modules, type ModuleSettings } from "@/lib/modules";
 export type McpConnection = { id: string; name: string; url: string; enabled: boolean; token?: string };
 export type Skill = { id: string; name: string; description: string; instructions: string; enabled: boolean };
 export type FeatureSettings = {
+  mode?: "roblox" | "vscode";
   modules?: ModuleSettings;
   room: boolean; uploads: boolean; mcps: boolean; skills: boolean;
   creatorType: "userId" | "groupId"; creatorId: string;
@@ -23,4 +24,7 @@ export const BUILTIN_SKILLS: Skill[] = [
 export function featureSettings(value: Partial<FeatureSettings> | null | undefined): FeatureSettings {
   return { ...DEFAULT_FEATURES, ...value, modules: modules(value?.modules) };
 }
-export function enabledSkills(settings: FeatureSettings) { return [...BUILTIN_SKILLS.filter(s => !settings.disabledBuiltinSkills.includes(s.id)), ...settings.customSkills].filter(s => s.enabled); }
+export function enabledSkills(settings: FeatureSettings) {
+  const builtins=BUILTIN_SKILLS.map(skill=>settings.mode!=="vscode"?skill:skill.id==="inspect-first"?{...skill,instructions:"Call code_get_workspace, code_list_files, code_get_active_editor and code_get_diagnostics. Read relevant files with code_read_file before proposing edits. Keep expectedSha256 from the current read. Agree exact relative paths with teammates and inspect recent commands. Check terminal exit codes and test output before claiming success."}:skill.id==="roblox-ui"?{...skill,name:"Build application UI",description:"Build interfaces in the connected code project.",instructions:"Inspect the existing application and UI framework first. Read files and understand routing, styles and accessibility. Propose small, consistent edits with current SHA-256 baselines. Use approved commands to build or test; do not claim a visual or interaction test from code inspection alone."}:skill);
+  return [...builtins.filter(s=>!settings.disabledBuiltinSkills.includes(s.id)),...settings.customSkills].filter(s=>s.enabled);
+}

@@ -1,3 +1,4 @@
+import {EXPANDED_ROBLOX_COMMANDS} from "./expanded-commands";
 export type CommandDoc = {
   type: string;
   group: "Read" | "Build" | "Scripts" | "Assets" | "Control";
@@ -7,6 +8,7 @@ export type CommandDoc = {
 };
 
 export const COMMAND_DOCS: CommandDoc[] = [
+  ...EXPANDED_ROBLOX_COMMANDS,
   { type: "get_tree", group: "Read", summary: "Explorer tree. No path = the main services. Capped at 2000 nodes.", payload: "{ path?, depth? = 2 }", example: { path: "Workspace", depth: 3 } },
   { type: "get_instance", group: "Read", summary: "Properties, attributes, tags, children and (for scripts) source of one instance.", payload: "{ path }", example: { path: "Workspace/Baseplate" } },
   { type: "find", group: "Read", summary: "Find instances by name substring and/or class (IsA).", payload: "{ query?, className?, under?, limit? = 100 }", example: { className: "BasePart", under: "Workspace" } },
@@ -35,6 +37,7 @@ export const COMMAND_DOCS: CommandDoc[] = [
   { type: "set_selection", group: "Control", summary: "Select instances in Studio so the user sees what you built.", payload: "{ paths: [path] }", example: { paths: ["Workspace/Map"] } },
   { type: "undo", group: "Control", summary: "Undo the last change in Studio.", payload: "{}", example: {} },
   { type: "redo", group: "Control", summary: "Redo.", payload: "{}", example: {} },
+  { type: "run_playtest", group: "Control", summary: "Start a real timed Studio Play or Run session (plugin 1.3.0+). Optional server-side assertion code runs in the test, with output and errors returned. A temporary test runner is removed afterwards. Does not publish the game or simulate keyboard/mouse input. Do not batch. Poll /commands?id when pending; never retry with a new nonce. Check result.passed, not just command ok.", payload: "{ mode?: 'play' | 'run' = 'play', duration?: integer 1..60 = 10, code?: server-side Luau (32 KB max) }", example: { mode: "play", duration: 15, code: "local Players = game:GetService('Players')\nlocal deadline = os.clock() + 10\nrepeat task.wait(0.1) until #Players:GetPlayers() > 0 or os.clock() > deadline\nassert(#Players:GetPlayers() > 0, 'No player spawned')\nreturn 'Player joined successfully'" } },
 ];
 
 const b64 = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");

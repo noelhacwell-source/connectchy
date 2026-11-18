@@ -1,9 +1,14 @@
 "use client";
+import DeleteRecord from "./DeleteRecord";
+import { copyText } from "@/lib/clipboard";
 import {
   ChatMessageExtras,
   ChatToolbox,
   CopyableCode,
 } from "./ChatEnhancements";
+import { Film } from "lucide-react";
+import {VideoAttachment} from "./VideoAttachment";
+import {AskAgent} from "./AgentDirectory";
 import AgentWindow from "./AgentWindow";
 import { AgentAvatar } from "./AgentAvatar";
 import {
@@ -116,6 +121,10 @@ export default function AgentChat({
   activate,
   studio,
   focusAgent,
+  configureAgents,
+  openVideos,
+  limitMb,
+  panelDefault,
 }: {
   token: string;
   roomId: number;
@@ -125,8 +134,12 @@ export default function AgentChat({
   enabled: ModuleSettings;
   onTeam: (team: TeamPlan) => void;
   activate: () => void;
-  studio: { online: boolean; placeName: string | null; paused: boolean };
+  studio: { online: boolean; placeName: string | null; paused: boolean; mode?:string };
   focusAgent: (agent: string) => void;
+  configureAgents: () => void;
+  openVideos: () => void;
+  limitMb: number | null;
+  panelDefault: "automatic" | "open" | "closed";
 }) {
   const base = `/api/agent/${token}/room`,
     suffix = `?room=${roomId}`;
@@ -166,7 +179,7 @@ export default function AgentChat({
     () => window.matchMedia("(min-width: 1280px)").matches,
     () => false,
   );
-  const agentWindowOpen = agentWin ?? wide;
+  const agentWindowOpen = agentWin ?? (panelDefault === "automatic" ? wide : panelDefault === "open");
   const [presence, setPresence] = useState<
     { agent: string; task: string; lastSeenAt: string }[]
   >([]);
@@ -257,7 +270,7 @@ export default function AgentChat({
     if (olderHeight.current !== null) {
       list.current.scrollTop += list.current.scrollHeight - olderHeight.current;
       olderHeight.current = null;
-    } else if (scrollOnUpdate.current) {
+    } else if (messages.length && scrollOnUpdate.current) {
       list.current.scrollTop = list.current.scrollHeight;
       scrollOnUpdate.current = false;
     }
@@ -323,7 +336,7 @@ export default function AgentChat({
       onTeam(d.team);
       setHasOlder(d.hasOlder);
       setError("");
-      if (nearBottom && d.nextCursor !== last.current && !query)
+      if (d.messages.length && nearBottom && d.nextCursor !== last.current && !query)
         requestAnimationFrame(() =>
           list.current?.scrollTo({
             top: list.current.scrollHeight,
@@ -453,12 +466,19 @@ export default function AgentChat({
     input.current?.focus();
   };
   const configure = async () => {
+    const count = expected ?? team.expected;
+    if (!Number.isInteger(count) || count < 1 || count > 32) {
+      setError("Expected agents must be a whole number between 1 and 32.");
+      return;
+    }
     setBusy(true);
+    setError("");
     try {
       await postJson(base + "/team" + suffix, {
         action: "resize",
-        expected: expected ?? team.expected,
+        expected: count,
       });
+      setExpected(null);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not configure team.");
@@ -468,7 +488,7 @@ export default function AgentChat({
   };
   const manageAgent = async (agent:string, operation:string) => {
     setBusy(true);
-    try { await postJson(base+"/team"+suffix,{action:"manage",agent,operation}); await load(); }
+    try { await postJson(base+"/team"+suffix,{action:"manage",agent,operation,...(operation==="remove"?{keepSlot:true}:{})}); await load(); }
     catch(e){setError(e instanceof Error?e.message:"Could not update agent.");}
     finally{setBusy(false);}
   };
@@ -510,7 +530,7 @@ export default function AgentChat({
             </span>
           </div>
           <div className="flex items-center gap-1">
-            <button
+            <details className="relative"><summary className="add-agent-button">+ Agent</summary><div className="popover"><button onClick={configureAgents}>Import a model or link an agent</button><button
               className="add-agent-button"
               disabled={busy || team.expected >= 32}
               title="Increase the team size; existing roles are preserved. Give the same project link to your new AI."
@@ -534,8 +554,8 @@ export default function AgentChat({
                 }
               }}
             >
-              + Agent
-            </button>
+              Add a team slot for a linked agent
+            </button></div></details>
             <button
               className={`icon-button ${agentWindowOpen ? "selected" : ""}`}
               aria-label="Agent window"
@@ -707,20 +727,20 @@ export default function AgentChat({
                 <div className="empty-symbol">
                   <Sparkles size={30} />
                 </div>
-                <p className="eyebrow">A PLACE TO BUILD TOGETHER</p>
+                <p className="eyebrow">{roomName}</p>
                 <h2>
                   {query
                     ? "No messages found."
                     : pins
                       ? "Nothing pinned yet."
-                      : "Your next idea starts here."}
+                      : "Start the conversation"}
                 </h2>
                 <p>
                   {query
                     ? "Try a different search or agent filter."
                     : pins
                       ? "Pin a useful decision or instruction to keep it close."
-                      : "Connect your AIs, give them a shared direction, and watch the work come together."}
+                      : "Post a brief for your team or ask an imported agent to reply."}
                 </p>
                 {!query && !pins && (
                   <div className="starter-prompts">
@@ -743,8 +763,7 @@ export default function AgentChat({
                   </div>
                 )}
                 <span className="mt-5 block text-xs text-dim">
-                  Messages go to this room. They don’t start or wake an AI
-                  client.
+                  Link-connected agents receive messages when they check the room.
                 </span>
               </div>
             )}
@@ -871,6 +890,7 @@ export default function AgentChat({
                       </ReactMarkdown>
                     )}
                   </div>
+                  {message.meta?.video&&<div className="studio-clip">{message.meta.video.mime?.startsWith("image/") ? <img loading="lazy" className="attachment-image" src={`/api/agent/${token}/videos?id=${message.id}`} alt={message.meta.video.caption || message.meta.video.name}/> : <video controls preload="metadata" src={`/api/agent/${token}/videos?id=${message.id}`} aria-label={message.meta.video.name}/>}<div><span>{message.meta.video.name}{message.meta.video.duration > 0 && " · "+Math.round(message.meta.video.duration)+"s"}</span>{active&&<AskAgent token={token} roomId={roomId} videoId={message.id} done={()=>void load()}/>}</div></div>}
                   <ChatMessageExtras
                     token={token}
                     roomId={roomId}
@@ -897,7 +917,7 @@ export default function AgentChat({
                       title="Copy message"
                       onClick={async () => {
                         try {
-                          await navigator.clipboard.writeText(message.text);
+                          await copyText(message.text);
                           setCopied(message.id);
                           setTimeout(() => setCopied(null), 1500);
                         } catch {
@@ -967,7 +987,7 @@ export default function AgentChat({
                     )}
                     {hide === message.id && (
                       <>
-                        <span className="text-xs">Hide this message?</span>
+                        <span className="text-xs">Remove message?</span><DeleteRecord token={token} kind="message" id={message.id} done={async()=>{setMessages(prev=>prev.filter(m=>m.id!==message.id));setHide(null);await load();}}/>
                         <button
                           onClick={async () => {
                             await action({ action: "delete", id: message.id });
@@ -1171,6 +1191,7 @@ export default function AgentChat({
               }}
               rows={expandedComposer ? 9 : 2}
             />
+            {active&&<div className="studio-compose-tools"><AskAgent token={token} roomId={roomId} configure={configureAgents} done={()=>void load()}/>{enabled.chatAttachments&&<><VideoAttachment url={`/api/agent/${token}/videos?room=${roomId}`} caption="" limitMb={limitMb} done={()=>void load()} error={setError}/><button type="button" className="studio-inline" onClick={openVideos}><Film size={14}/>Media library</button></>}</div>}
             <div className="composer-footer">
               <div className="flex items-center gap-2">
                 {enabled.pingInbox && (
@@ -1183,7 +1204,7 @@ export default function AgentChat({
                     </summary>
                     <div className="popover above">
                       <button onClick={() => ping("all")}>Everyone</button>
-                      {team.participants.map((p) => (
+                      {team.participants.filter(p => p.control !== "removed").map((p) => (
                         <button key={p.agent} onClick={() => ping(p.agent)}>
                           {p.agent}
                         </button>
@@ -1263,6 +1284,7 @@ export default function AgentChat({
       </div>
       {agentWindowOpen && (
         <AgentWindow
+          mode={studio.mode}
           token={token}
           roomName={roomName}
           online={studio.online}
@@ -1324,7 +1346,7 @@ export default function AgentChat({
               </p>
             </div>
           )}
-          {team.participants.map((p) => (
+          {team.participants.filter(p => p.control !== "removed").map((p) => (
             <div className="team-member" key={p.agent}>
               <div className="flex items-center gap-2">
                 <AgentAvatar name={p.agent} size="sm" />
@@ -1340,7 +1362,7 @@ export default function AgentChat({
                 {p.control==="removed" ? <Button size="sm" disabled={!active||busy} onClick={()=>void manageAgent(p.agent,"restore")}>Restore agent</Button> : <>
                   <Button size="sm" disabled={!active||busy} onClick={()=>void manageAgent(p.agent,p.control?"resume":"pause")}>{p.control?"Resume":"Pause role"}</Button>
                   <Button size="sm" disabled={!active||busy||p.control==="stopped"} onClick={()=>void manageAgent(p.agent,"stop")}>Stop agent</Button>
-                  <Button size="sm" disabled={!active||busy} onClick={()=>void manageAgent(p.agent,"remove")}>Remove agent &amp; role</Button>
+                  <Button size="sm" disabled={!active||busy} onClick={()=>void manageAgent(p.agent,"remove")}>Remove AI &amp; open slot</Button>
                 </>}
               </div>
               {enabled.agentPresence && (
@@ -1370,7 +1392,7 @@ export default function AgentChat({
               )}
             </div>
           ))}
-          {!team.participants.length && (
+          {!team.participants.some(p => p.control !== "removed") && (
             <div className="mt-8 text-center text-sm text-muted">
               <Users size={28} className="mx-auto mb-3 text-dim" />
               No agents have joined yet.

@@ -10,7 +10,7 @@ import { AGENT_PATTERN, scopesOverlap } from "@/lib/room-coordination";
 import { DEFAULT_TEAM } from "@/lib/team-types";
 export const dynamic = "force-dynamic";
 const input = z.discriminatedUnion("action", [
-  z.object({ action:z.literal("manage"), agent:z.string().regex(AGENT_PATTERN), operation:z.enum(["pause","stop","resume","remove","restore"]) }),
+  z.object({ action:z.literal("manage"), agent:z.string().regex(AGENT_PATTERN), operation:z.enum(["pause","stop","resume","remove","restore"]), keepSlot:z.boolean().optional() }),
   z.object({
     action: z.literal("configure"),
     expected: z.number().int().min(1).max(32),
@@ -115,7 +115,15 @@ export async function POST(req: Request, ctx: Context) {
         if(!wasRemoved && data.operation==="restore")throw new ApiError(409,"This agent is not removed.");
         p.controlRevision=(p.controlRevision??0)+1;
         p.control=data.operation==="pause"?"paused":data.operation==="stop"?"stopped":data.operation==="remove"?"removed":undefined;
-        if(data.operation==="remove"){team.expected=Math.max(1,team.expected-1);if(!team.participants.some(p=>p.control!=="removed"))team.phase="planning";}
+        if(data.operation==="remove"){
+          if(data.keepSlot){
+            team.phase="planning";
+            for(const member of team.participants)member.ready=false;
+          } else {
+            team.expected=Math.max(1,team.expected-1);
+            if(!team.participants.some(p=>p.control!=="removed"))team.phase="planning";
+          }
+        }
         if(data.operation==="restore"){
           if(team.participants.filter(p=>p.control!=="removed").length>32)throw new ApiError(409,"Team limit reached.");
           team.expected=Math.max(team.expected,team.participants.filter(p=>p.control!=="removed").length);
@@ -124,6 +132,7 @@ export async function POST(req: Request, ctx: Context) {
         if(p.control){await tx.update(commands).set({status:"error",error:`Agent ${p.control} by owner`,completedAt:new Date()}).where(and(eq(commands.connectionId,conn.id),eq(commands.roomId,room.id),sql`lower(${commands.agent})=${p.agent.toLowerCase()}`,inArray(commands.status,["pending","review"])));}
         team.revision++;
         text=`@${p.agent} Owner ${data.operation}: ${p.role}. ${p.control?"Stop generating and stop tool calls now. Wait for owner resume/restore; do not change your name to bypass this.":"Read /control?agent="+encodeURIComponent(p.agent)+" and the current role plan before continuing."} Other agents may continue their assigned work.`;
+        if(data.operation==="remove" && data.keepSlot)text=`@${p.agent} Removed by owner. Stop work and tool calls now. @all A slot is open for a replacement AI in this room. Existing roles and chat history are preserved. Wait for the new agent to join, agree scopes and confirm ready again before editing.`;
       } else if (data.action === "resize") {
         if (data.expected < team.participants.filter(p=>p.control!=="removed").length)
           throw new ApiError(

@@ -2,6 +2,7 @@
 export const PLUGIN_HANDLERS = String.raw`
 ---------------------------------------------------------------- commands
 local handlers = {}
+handlers.run_playtest = runPlaytest
 
 local function describe(inst)
 	return { path = pathOf(inst), name = inst.Name, className = inst.ClassName }
@@ -29,6 +30,8 @@ local function scanAll(under, visit)
 		end
 	end
 end
+
+installAdvancedHandlers(handlers,scanAll,describe)
 
 local function createFromSpec(spec, parent, errors, label)
 	if type(spec) ~= "table" or type(spec.className) ~= "string" then
@@ -423,7 +426,7 @@ handlers.batch = function(p)
 	local results = {}
 	local failed = 0
 	for i, cmd in ipairs(p.commands) do
-		local handler = type(cmd) == "table" and cmd.type ~= "batch" and handlers[cmd.type] or nil
+		local handler = type(cmd) == "table" and cmd.type ~= "batch" and cmd.type ~= "run_playtest" and handlers[cmd.type] or nil
 		local ok, res
 		if handler then
 			ok, res = pcall(handler, type(cmd.payload) == "table" and cmd.payload or {})
@@ -450,12 +453,17 @@ local READ_ONLY = {
 }
 
 local function execute(cmd)
+	if playtestBusy then return false, "A playtest is running. Wait for its result before sending Studio commands." end
 	local handler = handlers[cmd.type]
 	if not handler then
 		return false, "Unknown command type '" .. tostring(cmd.type) .. "'"
 	end
 	local payload = type(cmd.payload) == "table" and cmd.payload or {}
-	if READ_ONLY[cmd.type] then
+	if cmd.type == "run_playtest" then
+		payload._commandId = cmd.id
+		return pcall(handler, payload)
+	end
+	if READ_ONLY[cmd.type] or ADVANCED_READ_ONLY[cmd.type] then
 		return pcall(handler, payload)
 	end
 	-- Every change becomes one undo step in Studio.
@@ -547,7 +555,7 @@ pairBox.ClearTextOnFocus = false
 pairBox.Text = ""
 pairBox.PlaceholderText = "Paste the private AI link here"
 pairBox.Parent = panel
-local logLabel = makeLabel(284, 400, 12, Enum.Font.Code)
+local logLabel = makeLabel(244, 400, 12, Enum.Font.Code)
 logLabel.TextColor3 = Color3.fromRGB(170, 176, 188)
 
 local toggle = Instance.new("TextButton")
@@ -561,7 +569,11 @@ toggle.TextColor3 = Color3.fromRGB(240, 240, 245)
 toggle.Parent = panel
 
 local function refreshUi()
-	if state.stopped then
+	if playtestBusy then
+		statusLabel.Text = "PLAYTESTING"
+		statusLabel.TextColor3 = Color3.fromRGB(183, 227, 145)
+		detailLabel.Text = "Running a timed Studio test. Use Studio Stop to end it early."
+	elseif state.stopped then
         statusLabel.Text = "STOPPED"
         statusLabel.TextColor3 = Color3.fromRGB(240, 140, 140)
         detailLabel.Text = "Stopped by the owner. Waiting for resume in the app."
@@ -578,7 +590,7 @@ local function refreshUi()
 		statusLabel.TextColor3 = Color3.fromRGB(240, 110, 100)
 		detailLabel.Text = state.message
 	end
-	toggle.Text = state.enabled and "Pause connection" or "Resume connection"
+	toggle.Text = state.enabled and state.online and "Disconnect" or "Connect"
 	logLabel.Text = table.concat(state.log, "\n")
 end
 
@@ -591,7 +603,7 @@ local function logLine(text)
 end
 
 toggle.MouseButton1Click:Connect(function()
-	state.enabled = not state.enabled
+	state.enabled = not (state.enabled and state.online)
 	state.online = false
 	state.message = "Connecting..."
 	refreshUi()
@@ -642,6 +654,7 @@ saveAddress.MouseButton1Click:Connect(function()
 	end
 	SERVER_URL = address
 	PLUGIN_KEY = newKey
+	state.enabled = true
 	pairBox.Text = ""
 	addressBox.Text = address
 	state.online = false
@@ -724,6 +737,7 @@ task.spawn(function()
                         state.stopped = true refreshUi()
                         ok, res = false, "Stopped or stop status unavailable: command was not executed."
                     else
+                        if cmd.type == "run_playtest" then task.defer(refreshUi) end
                         ok, res = execute(cmd)
                     end
 					local entry = { id = cmd.id, ok = ok }

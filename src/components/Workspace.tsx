@@ -1,4 +1,18 @@
 "use client";
+import ButtonDesigner from "./ButtonDesigner";
+import { Fragment } from "react";
+import RecordManager from "./RecordManager";
+import VsCodeFiles from "./VsCodeFiles";
+import CustomizeLayout from "./CustomizeLayout";
+import VideoSettings from "./VideoSettings";
+import { useLayoutSettings } from "./useLayoutSettings";
+import { SIDEBAR_SECTIONS, WORKSPACE_TOOLBAR, NAV_SECTIONS, orderedItems } from "@/lib/layout-settings";
+import VideoLibrary from "./VideoLibrary";
+import DeleteWorkspaceDialog from "./DeleteWorkspaceDialog";
+import { COLLECTIONS_BY_TAB, RECORD_COLLECTIONS } from "@/lib/record-collections";
+import Collaboration from "./Collaboration";
+import AgentDirectory from "./AgentDirectory";
+import {AppearancePanel,useAppearance} from "./Appearance";
 import GameReferences from "./GameReferences";
 import WorkspaceDialog from "./WorkspaceDialog";
 import CommandPalette, { type PaletteAction } from "./CommandPalette";
@@ -24,7 +38,7 @@ import {
   Code2,
   FolderTree,
   Hash,
-  LayoutDashboard,
+  LayoutDashboard, Layers3,
   Lightbulb,
   Menu,
   MessageSquare,
@@ -47,7 +61,7 @@ import {
   ExternalLink,
   PanelLeftClose,
   Link2,
-  FileText,
+  FileText, Film, ListChecks, SlidersHorizontal,
   PanelLeft,
 } from "lucide-react";
 import { rememberConnection, type Status } from "@/lib/client";
@@ -59,6 +73,10 @@ import { AgentAvatar } from "./AgentAvatar";
 import FeatureControls from "./FeatureControls";
 import WorkspaceTools, { AssetLibrary, ReviewPanel } from "./WorkspaceTools";
 import SetupPanel from "./SetupPanel";
+import CodeWorkspace, { CodeSetup } from "./CodeWorkspace";
+import MissionControl from "./MissionControl";
+import {useBoardCards} from "./useBoardCards";
+import FeatureCatalog from "./FeatureCatalog";
 import ExtensionsPanel from "./ExtensionsPanel";
 import ActivityPanel from "./ActivityPanel";
 import ExplorerPanel from "./ExplorerPanel";
@@ -81,11 +99,22 @@ type View =
   | "references"
   | "assets"
   | "reviews"
+  | "videos"
   | "activity"
   | "explorer"
   | "console"
+  | "mission"
+  | "collaboration"
+  | "catalog"
   | "insights";
+const NAV_GROUPS = [
+  { id: "planning", ids: ["mission", "task", "note", "decision", "handoff", "bookmark"] },
+  { id: "files", ids: ["explorer", "assets", "references", "checkpoint", "check"] },
+  { id: "operations", ids: ["console", "reviews", "activity", "insights", "catalog"] },
+];
 const NAV = [
+  {id:"mission",name:"Mission Control",icon:LayoutDashboard,feature:"missionControl"},
+  {id:"catalog",name:"Feature catalog",icon:Sparkles,feature:"missionControl"},
   {
     id: "references",
     name: "Game references",
@@ -133,27 +162,48 @@ export default function Workspace({ token }: { token: string }) {
     [selectedAgent, setSelectedAgent] = useState(""),
     [sidebar, setSidebar] = useState<boolean | null>(null),
     [settings, setSettings] = useState<
-      "features" | "connection" | "integrations" | null
+      "features" | "connection" | "integrations" | "appearance" | "agents" | "layout" | "video-settings" | null
     >(null),
     [roomEdit, setRoomEdit] = useState<{
-      action: "create" | "rename" | "delete";
+      action: "create" | "rename" | "delete" | "purge";
       id?: number;
       name: string;
     } | null>(null),
     [busy, setBusy] = useState(false),
+    [manageRecords, setManageRecords] = useState(false),
+    [recordRevision, setRecordRevision] = useState(0),
+    [deleteProject, setDeleteProject] = useState(false),
     [archived, setArchived] = useState<Room[] | null>(null),
     [agentMenu, setAgentMenu] = useState(false),
     [paletteOpen, setPaletteOpen] = useState(false);
+  const prefs=useAppearance(token);
+  const customization = useLayoutSettings(token);
+  const { layout } = customization;
+  const showBlock = (id: string) => !layout.hidden.includes(id);
+  const label = (id: string, fallback: string) => layout.labels[id]?.trim() || fallback;
   const router = useRouter();
   const desktop = useSyncExternalStore(
       subscribeDesktop,
       () => window.matchMedia("(min-width: 801px)").matches,
       () => true,
     ),
-    sidebarOpen = sidebar ?? desktop;
+    sidebarOpen = sidebar ?? (layout.sidebarDefault === "automatic" ? desktop : layout.sidebarDefault === "open");
   const base = `/api/agent/${token}`,
     remembered = useRef(false),
     enabled = modules(status?.modules);
+  const editorMode = status?.mode === "vscode";
+  const videosEnabled = !!status?.features.room && enabled.chatAttachments;
+  const kinds = (COLLECTIONS_BY_TAB[view] ?? []).filter(kind => {
+    const feature = RECORD_COLLECTIONS[kind].feature;
+    return (!feature || enabled[feature]) && (RECORD_COLLECTIONS[kind].scope !== "room" || !!status?.features.room);
+  });
+  const visibleNav = NAV.filter(n=>enabled[n.feature as ModuleId]&&(!editorMode||!["references","assets","checkpoint","check"].includes(n.id)));
+  const navItems = orderedItems([
+    { id: "chat", name: "Agent chat", icon: MessageSquare, group: "team" },
+    ...(status?.features.room ? [{ id: "collaboration", name: "Collaboration", icon: Users, group: "team" }] : []),
+    ...(videosEnabled ? [{ id: "videos", name: "Videos & images", icon: Film, group: "team" }] : []),
+    ...visibleNav.map(item => ({ ...item, group: NAV_GROUPS.find(group => group.ids.includes(item.id))?.id ?? "operations" })),
+  ] as { id: View; name: string; icon: typeof MessageSquare; group: string }[], layout.navigation);
   const refresh = useCallback(async () => {
     const r = await fetch(base + "/status", { cache: "no-store" });
     if (r.status === 404) {
@@ -169,6 +219,7 @@ export default function Workspace({ token }: { token: string }) {
     }
   }, [base, token]);
   useEffect(() => {
+    if (missing) return;
     let live = true;
     const poll = () =>
       refresh().catch((e) => {
@@ -180,7 +231,7 @@ export default function Workspace({ token }: { token: string }) {
       live = false;
       clearInterval(t);
     };
-  }, [refresh]);
+  }, [refresh, missing]);
   const loadRooms = useCallback(async () => {
     const d = await requestJson<{ rooms: Room[]; activeRoomId: number }>(
       base + "/rooms",
@@ -190,7 +241,7 @@ export default function Workspace({ token }: { token: string }) {
     return d;
   }, [base]);
   useEffect(() => {
-    if (!status?.features.room) return;
+    if (missing || !status?.features.room) return;
     let live = true;
     const poll = () =>
       loadRooms().catch((e) => {
@@ -202,14 +253,14 @@ export default function Workspace({ token }: { token: string }) {
       live = false;
       clearInterval(t);
     };
-  }, [status?.features.room, loadRooms]);
+  }, [status?.features.room, loadRooms, missing]);
   const selected =
       rooms.find((r) => r.id === selectedId) ??
       rooms.find((r) => r.id === activeId),
     roomId = selected?.id ?? null;
   const updateTeam = useCallback((next: TeamPlan) => setTeam(next), []);
   useEffect(() => {
-    if (!roomId || !status?.features.room) return;
+    if (missing || !roomId || !status?.features.room) return;
     let live = true;
     const poll = () =>
       requestJson<{ team: TeamPlan }>(base + `/room/team?room=${roomId}`)
@@ -223,7 +274,7 @@ export default function Workspace({ token }: { token: string }) {
       live = false;
       clearInterval(t);
     };
-  }, [base, roomId, status?.features.room]);
+  }, [base, roomId, status?.features.room, missing]);
   const roomAction = async (action: string, id?: number, name?: string) => {
     setBusy(true);
     setError("");
@@ -234,7 +285,7 @@ export default function Workspace({ token }: { token: string }) {
       );
       await loadRooms();
       if (action === "create") setSelectedId(d.room?.id ?? d.activeRoomId);
-      if (action === "delete") setSelectedId(d.activeRoomId);
+      if (action === "delete" || action === "purge") setSelectedId(d.activeRoomId);
       setRoomEdit(null);
       if (archived !== null) {
         const a = await requestJson<{ rooms: Room[] }>(
@@ -279,7 +330,12 @@ export default function Workspace({ token }: { token: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   const paletteActions: PaletteAction[] = [
-    ...NAV.filter((n) => enabled[n.feature as ModuleId]).map((n) => ({
+    {id:"customize",label:"Customize workspace",hint:"Settings",icon:SlidersHorizontal,run:()=>setSettings("layout")},
+    {id:"appearance",label:"Customize background",hint:"Settings",icon:Settings2,run:()=>setSettings("appearance")},
+    {id:"directory",label:"Import an agent",hint:"Settings",icon:Users,run:()=>setSettings("agents")},
+    ...(status?.features.room?[{id:"collaborate",label:"Surveys, questions and private chats",hint:"Collaboration",icon:MessageSquare,run:()=>setView("collaboration")}]:[]),
+    ...(videosEnabled ? [{ id: "videos", label: "Videos & images", hint: "Workspace", icon: Film, run: () => setView("videos") }] : []),
+    ...visibleNav.map((n) => ({
       id: `view:${n.id}`,
       label: n.name,
       hint: "View",
@@ -298,7 +354,7 @@ export default function Workspace({ token }: { token: string }) {
         icon: Hash,
         run: () => selectRoom(r),
       })),
-    ...team.participants.map((p) => ({
+    ...team.participants.filter(p => p.control !== "removed").map((p) => ({
       id: `agent:${p.agent}`,
       label: `Focus ${p.agent}`,
       hint: p.role,
@@ -380,12 +436,8 @@ export default function Workspace({ token }: { token: string }) {
     );
   const navItem = NAV.find((n) => n.id === view),
     viewEnabled = !navItem || enabled[navItem.feature as ModuleId];
-  return (
-    <div
-      className={`agent-shell ${enabled.workspaceAnimations ? "animated-workspace" : "no-workspace-motion"} ${enabled.chatColoredAvatars ? "" : "monochrome-avatars"} ${enabled.chatLargeText ? "large-chat-text" : ""}`}
-    >
-      <header className="workspace-topbar">
-        <div className="flex min-w-0 items-center gap-2">
+  const toolbarBlocks: Record<string, ReactNode> = {
+    "workspace-controls": (<div className="flex min-w-0 items-center gap-2">
           <button
             className="icon-button"
             aria-label="Toggle sidebar"
@@ -399,7 +451,7 @@ export default function Workspace({ token }: { token: string }) {
             aria-label="Connectchy projects"
           >
             <span className="brand-glyph">
-              s<span>l</span>
+              <Layers3 size={19}/>
             </span>
           </Link>
           <span className="topbar-divider" />
@@ -434,7 +486,7 @@ export default function Workspace({ token }: { token: string }) {
                   <Users size={17} />
                   All agents{!selectedAgent && <Check size={14} />}
                 </button>
-                {team.participants.map((p) => (
+                {team.participants.filter(p => p.control !== "removed").map((p) => (
                   <button
                     key={p.agent}
                     onClick={() => {
@@ -461,7 +513,7 @@ export default function Workspace({ token }: { token: string }) {
                   <AgentAvatar name="Owner" size="sm" />
                   Your messages
                 </button>
-                {!team.participants.length && (
+                {!team.participants.some(p => p.control !== "removed") && (
                   <p className="p-2 text-xs text-dim">
                     Agents appear here when they register in the room.
                   </p>
@@ -469,18 +521,18 @@ export default function Workspace({ token }: { token: string }) {
               </div>
             )}
           </div>
-        </div>
-        <div className="topbar-project">
+        </div>),
+    "workspace-path": (<div className="topbar-project">
           <span
             className={`connection-dot ${status?.online ? "online" : ""}`}
           />
-          <span>{status?.name ?? "Connecting…"}</span>
+          <span>{label("workspace-path", status?.name ?? "Connecting…")}</span>
           <span className="text-dim">/</span>
           <span className="text-muted">
-            {navItem?.name ?? selected?.name ?? "Agent workspace"}
+            {view === "chat" ? (selected ? label("room:" + selected.id, selected.name) : "Agent chat") : label(view, navItems.find(item => item.id === view)?.name ?? "Agent workspace")}
           </span>
-        </div>
-        <div className="flex items-center gap-2">
+        </div>),
+    "workspace-actions": (<div className="flex items-center gap-2">
           <button
             aria-label="Command palette"
             title="Command palette (⌘K)"
@@ -519,48 +571,32 @@ export default function Workspace({ token }: { token: string }) {
             <Settings2 size={17} />
             <span>Settings</span>
           </button>
-        </div>
-      </header>
-      <div className="workspace-body">
-        {sidebarOpen && (
-          <>
-            <button
-              className="mobile-sidebar-backdrop"
-              aria-label="Close sidebar"
-              onClick={() => setSidebar(false)}
-            />
-            <aside className="workspace-sidebar">
-              <div className="sidebar-project">
+        </div>),
+  };
+  const sidebarBlocks: Record<string, ReactNode> = {
+    project: (<div className="sidebar-project">
                 <span className="project-icon">
                   <Sparkles size={17} />
                 </span>
                 <div className="min-w-0">
-                  <strong>{status?.name ?? "Connectchy"}</strong>
+                  <strong>{label("project", status?.name ?? "Connectchy")}</strong>
                   <small>
                     {status?.online
-                      ? (status.placeName ?? "Studio connected")
-                      : "Studio offline"}
+                      ? (status.placeName ?? (editorMode?"VS Code connected":"Studio connected"))
+                      : editorMode ? "VS Code offline" : "Studio offline"}
                   </small>
                 </div>
                 <button
                   className="icon-button ml-auto"
-                  aria-label="Connection setup"
+                  aria-label="Workspace settings"
                   onClick={() => setSettings("connection")}
                 >
                   <MoreHorizontal size={16} />
                 </button>
-              </div>
-              <button
-                className={`sidebar-link ${view === "chat" ? "active" : ""}`}
-                onClick={() => { setView("chat"); if (window.innerWidth < 800) setSidebar(false); }}
-              >
-                <MessageSquare size={16} />
-                <span>Agent chat</span>
-                <span className="nav-count">{team.participants.length}</span>
-              </button>
-              <div className="sidebar-section">
+              </div>),
+    rooms: (<div className="sidebar-section">
                 <div className="sidebar-section-heading">
-                  <span>ROOMS</span>
+                  <span>{label("rooms", "Rooms")}</span>
                   {enabled.roomManagement && (
                     <button
                       aria-label="New room"
@@ -573,7 +609,7 @@ export default function Workspace({ token }: { token: string }) {
                     </button>
                   )}
                 </div>
-                {rooms.map((r) => (
+                {orderedItems(rooms.map(room => ({...room, id: "room:" + room.id, roomId: room.id})), layout.rooms).filter(item => showBlock(item.id)).map(item => ({...item, id: item.roomId})).map((r) => (
                   <div
                     className={`room-nav-row ${r.id === roomId ? "selected" : ""}`}
                     key={r.id}
@@ -583,7 +619,7 @@ export default function Workspace({ token }: { token: string }) {
                       onClick={() => selectRoom(r)}
                     >
                       <Hash size={14} />
-                      <span>{r.name}</span>
+                      <span>{label("room:" + r.id, r.name)}</span>
                       {r.id === activeId && <span className="room-live-dot" />}
                     </button>
                     {enabled.roomManagement && (
@@ -622,6 +658,7 @@ export default function Workspace({ token }: { token: string }) {
                           >
                             Move to archive
                           </button>
+                          <button className="text-bad" onClick={()=>setRoomEdit({action:"purge",id:r.id,name:r.name})}>Delete permanently</button>
                         </div>
                       </details>
                     )}
@@ -657,41 +694,13 @@ export default function Workspace({ token }: { token: string }) {
                     Room archive
                   </button>
                 )}
-              </div>
-              <div className="sidebar-section flex-1">
-                <div className="sidebar-section-heading">
-                  <span>WORKSPACE</span>
-                  <Settings2 size={12} />
-                </div>
-                <nav>
-                  {NAV.filter((n) => enabled[n.feature as ModuleId]).map(
-                    (n) => (
-                      <button
-                        key={n.id}
-                        className={`sidebar-link ${view === n.id ? "active" : ""}`}
-                        onClick={() => {
-                          setView(n.id);
-                          if (window.innerWidth < 800) setSidebar(false);
-                        }}
-                      >
-                        <n.icon size={16} />
-                        <span>{n.name}</span>
-                        {n.id === "reviews" && (
-                          <span className="nav-indicator" />
-                        )}
-                      </button>
-                    ),
-                  )}
-                </nav>
-              </div>
-              <div className="sidebar-footer">
+              </div>),
+    connection: (<div className="sidebar-footer">
                 <span
                   className={`connection-dot ${status?.tunnelReady ? "online" : ""}`}
                 />
                 <span>
-                  {status?.tunnelReady
-                    ? "Public link connected"
-                    : "Public tunnel offline"}
+                  {label("connection", status?.tunnelReady ? "Public link connected" : "Public tunnel offline")}
                 </span>
                 <button
                   aria-label="Open connection settings"
@@ -699,7 +708,52 @@ export default function Workspace({ token }: { token: string }) {
                 >
                   <ArrowRight size={14} />
                 </button>
-              </div>
+              </div>),
+  };
+  return (
+    <div
+      {...prefs.attributes} style={{...prefs.style, ...customization.style}}
+      data-sidebar-side={layout.sidebarSide} data-toolbar-side={layout.toolbarSide}
+      data-agent-panel-side={layout.agentPanelSide} data-composer-side={layout.composerSide} data-density={layout.density} data-motion={layout.motion}
+      className={`agent-shell ${enabled.workspaceAnimations ? "animated-workspace" : "no-workspace-motion"} ${enabled.chatColoredAvatars ? "" : "monochrome-avatars"} ${enabled.chatLargeText ? "large-chat-text" : ""}`}
+    >
+      <ButtonDesigner layout={layout} update={customization.update}/>
+      <header className="workspace-topbar">
+        {orderedItems(WORKSPACE_TOOLBAR, layout.toolbar).filter(item => showBlock(item.id)).map(item => (
+          <div className={"custom-toolbar-block " + item.id} key={item.id} aria-label={label(item.id, item.label)}>
+            {toolbarBlocks[item.id]}
+          </div>
+        ))}
+        <button aria-label="Customize workspace" className="settings-button customize-launch" onClick={() => setSettings("layout")}>
+          <SlidersHorizontal size={17}/><span>Customize</span>
+        </button>
+      </header>
+      <div className="workspace-body">
+        {sidebarOpen && (
+          <>
+            <button
+              className="mobile-sidebar-backdrop"
+              aria-label="Close sidebar"
+              onClick={() => setSidebar(false)}
+            />
+            <aside className="workspace-sidebar">
+              {orderedItems(SIDEBAR_SECTIONS, layout.sections).filter(section => showBlock(section.id)).map(section => {
+                if (sidebarBlocks[section.id]) return <Fragment key={section.id}>{sidebarBlocks[section.id]}</Fragment>;
+                const links = navItems.filter(item => showBlock(item.id) &&
+                  (NAV_SECTIONS.some(group => group.id === layout.placements[item.id]) ? layout.placements[item.id] : item.group) === section.id);
+                if (!links.length) return null;
+                return <div className="sidebar-section navigation-group" key={section.id}>
+                  <div className="sidebar-section-heading">{label(section.id, section.label)}</div>
+                  <nav aria-label={label(section.id, section.label)}>
+                    {links.map(item => <button key={item.id} className={"sidebar-link " + (view === item.id ? "active" : "")}
+                      aria-current={view === item.id ? "page" : undefined}
+                      onClick={() => { setView(item.id); if (!desktop) setSidebar(false); }}>
+                      <item.icon size={16}/><span>{label(item.id, item.name)}</span>
+                      {item.id === "chat" && <span className="nav-count">{team.participants.filter(p => p.control !== "removed").length}</span>}
+                    </button>)}
+                  </nav>
+                </div>;
+              })}
             </aside>
           </>
         )}
@@ -722,6 +776,11 @@ export default function Workspace({ token }: { token: string }) {
               </button>
             </div>
           )}
+          {status && kinds.length > 0 && view !== "videos" && <div className="workspace-record-bar">
+            <span>{navItem?.name ?? (view === "collaboration" ? "Collaboration" : "Conversation records")}</span>
+            <button onClick={() => setManageRecords(true)}><ListChecks size={15}/>Manage records</button>
+          </div>}
+          <Fragment key={recordRevision}>
           {!status ? (
             <div className="workspace-loading">
               <span className="loading-orbit" />
@@ -744,11 +803,16 @@ export default function Workspace({ token }: { token: string }) {
                 roomId={selected.id}
                 roomName={selected.name}
                 active={selected.id === activeId}
+                configureAgents={()=>setSettings("agents")}
+                panelDefault={layout.agentPanelDefault}
+                limitMb={status.videoUploadLimitMb}
+                openVideos={() => setView("videos")}
                 selectedAgent={selectedAgent}
                 enabled={enabled}
                 onTeam={updateTeam}
                 activate={() => void roomAction("activate", selected.id)}
                 studio={{
+                  mode: status.mode,
                   online: status.online,
                   placeName: status.placeName,
                   paused: !!status.paused,
@@ -785,10 +849,21 @@ export default function Workspace({ token }: { token: string }) {
                   className="mt-4 text-sm text-muted"
                   onClick={() => setSettings("connection")}
                 >
-                  Connect Roblox Studio
+                  Connect {editorMode ? "VS Code" : "Roblox Studio"}
                 </button>
               </div>
             )
+          ) : view === "collaboration" && !(status.features.room && selected) ? (<div className="workspace-loading">Select an enabled communication room.</div>) : view === "collaboration" && selected ? (
+            <div className="canvas-scroll"><Collaboration key={selected.id} token={token} roomId={selected.id} roomName={selected.name} configure={()=>setSettings("agents")}/></div>
+          ) : view === "videos" ? (
+            <div className="canvas-scroll">
+              {videosEnabled ? <VideoLibrary token={token} activeRoom={activeId} activeName={rooms.find(r => r.id === activeId)?.name} manage={() => setManageRecords(true)} limitMb={status.videoUploadLimitMb} customizeUploads={() => setSettings("video-settings")} layout={layout}/>
+                : <div className="collection-empty"><Film size={28}/><h2>Videos are disabled</h2><Button onClick={() => setSettings("features")}>Open features</Button></div>}
+            </div>
+          ) : view === "catalog" ? (
+            <div className="canvas-scroll standard-tool"><FeatureCatalog token={token} mode={status.mode}/></div>
+          ) : view === "mission" ? (
+            <div className="canvas-scroll standard-tool"><MissionControl key={`${token}:${roomId}`} token={token} roomId={roomId}/></div>
           ) : view === "references" ? (
             <div className="canvas-scroll">
               <GameReferences token={token} />
@@ -814,18 +889,18 @@ export default function Workspace({ token }: { token: string }) {
             </div>
           ) : view === "explorer" ? (
             <div className="canvas-scroll standard-tool">
-              <ExplorerPanel token={token} online={status.online} />
+              {editorMode?<VsCodeFiles token={token} online={status.online}/>:<ExplorerPanel token={token} online={status.online} />}
             </div>
           ) : view === "console" ? (
             <div className="canvas-scroll standard-tool">
               <div className="tool-heading">
                 <div>
                   <p className="eyebrow">CONSOLE</p>
-                  <h1>A direct line to Studio.</h1>
+                  <h1>A direct line to {editorMode?"VS Code":"Studio"}.</h1>
                   <p>Manual actions use your local dashboard permissions.</p>
                 </div>
               </div>
-              <ConsolePanel token={token} online={status.online} />
+              {editorMode?<CodeWorkspace token={token} online={status.online}/>:<ConsolePanel token={token} online={status.online} />}
             </div>
           ) : view === "insights" ? (
             <div className="canvas-scroll">
@@ -842,8 +917,11 @@ export default function Workspace({ token }: { token: string }) {
               />
             </div>
           )}
+          </Fragment>
         </main>
       </div>
+      {manageRecords && kinds.length > 0 && <RecordManager key={view + ":" + roomId} token={token} room={roomId} kinds={kinds} close={() => setManageRecords(false)} changed={() => { setRecordRevision(value => value + 1); void loadRooms().catch(e => setError(e.message)); }}/>}
+      {deleteProject && status && <DeleteWorkspaceDialog workspace={{ token, name: status.name }} close={() => setDeleteProject(false)} done={() => router.replace("/")}/>}
       {settings && (
         <WorkspaceDialog
           close={() => setSettings(null)}
@@ -851,10 +929,14 @@ export default function Workspace({ token }: { token: string }) {
           wide
         >
           <div className="settings-heading">
-            <p className="eyebrow">STUDIO LINK</p>
+            <p className="eyebrow">CONNECTCHY</p>
             <h2>Workspace settings</h2>
           </div>
           <div className="settings-tabs">
+            <button className={settings==="layout"?"active":""} onClick={()=>setSettings("layout")}>Layout</button>
+            <button className={settings==="video-settings"?"active":""} onClick={()=>setSettings("video-settings")}>Uploads</button>
+            <button className={settings==="appearance"?"active":""} onClick={()=>setSettings("appearance")}>Appearance</button>
+            <button className={settings==="agents"?"active":""} onClick={()=>setSettings("agents")}>Agents</button>
             <button
               className={settings === "features" ? "active" : ""}
               onClick={() => setSettings("features")}
@@ -875,14 +957,20 @@ export default function Workspace({ token }: { token: string }) {
             </button>
           </div>
           <div className="settings-content">
-            {settings === "features" ? (
+            {settings==="layout"?<CustomizeLayout {...customization}
+              navigation={navItems.map(item => ({id:item.id,label:item.name,group:item.group}))}
+              rooms={rooms.map(room => ({id:"room:"+room.id,label:room.name}))}/>
+            :settings==="video-settings"&&status?<VideoSettings token={token} limitMb={status.videoUploadLimitMb}
+              saved={limit => setStatus(current => current ? {...current,videoUploadLimitMb:limit} : current)}/>
+            :settings==="appearance"?<AppearancePanel prefs={prefs}/>:settings==="agents"?<AgentDirectory token={token}/>:settings === "features" ? (
               <FeatureControls token={token} changed={() => void refresh()} />
             ) : settings === "connection" && status ? (
-              <SetupPanel token={token} status={status} />
+              editorMode?<CodeSetup token={token} status={status}/>:<SetupPanel token={token} status={status} />
             ) : (
               <ExtensionsPanel token={token} changed={() => void refresh()} />
             )}
           </div>
+          <div className="settings-workspace-footer"><Button variant="danger" size="sm" onClick={() => { setSettings(null); setDeleteProject(true); }}><Trash2 size={14}/>Delete workspace</Button></div>
         </WorkspaceDialog>
       )}
       {roomEdit && (
@@ -894,9 +982,9 @@ export default function Workspace({ token }: { token: string }) {
                 ? "A fresh place to start."
                 : roomEdit.action === "rename"
                   ? "Give this room a name."
-                  : "Archive this conversation?"}
+                  : roomEdit.action==="purge" ? "Permanently delete this room?" : "Archive this conversation?"}
             </h2>
-            {roomEdit.action === "delete" ? (
+            {roomEdit.action==="purge"?<p className="text-sm text-muted">Deleting “{roomEdit.name}” removes its messages, private chats, surveys, files and room records. This cannot be undone.{rooms.length===1&&rooms[0].id===roomEdit.id?" A fresh Main room will replace it.":""}</p>:roomEdit.action === "delete" ? (
               <p className="text-sm text-muted">
                 “{roomEdit.name}” moves to the room archive. Its messages and
                 roles are preserved and can be restored.
@@ -943,7 +1031,7 @@ export default function Workspace({ token }: { token: string }) {
                     ? "Create room"
                     : roomEdit.action === "rename"
                       ? "Save name"
-                      : "Archive room"}
+                      : roomEdit.action==="purge" ? "Delete permanently" : "Archive room"}
               </Button>
             </div>
           </div>
@@ -978,7 +1066,7 @@ export default function Workspace({ token }: { token: string }) {
                   onClick={() => void roomAction("restore", r.id)}
                 >
                   Restore
-                </Button>
+                </Button><Button variant="danger" size="sm" onClick={()=>{setArchived(null);setRoomEdit({action:"purge",id:r.id,name:r.name});}}>Delete</Button>
               </div>
             ))}
             {error && <Notice tone="bad">{error}</Notice>}
@@ -995,6 +1083,7 @@ export default function Workspace({ token }: { token: string }) {
   );
 }
 function ProjectInsights({ token }: { token: string }) {
+  const cards=useBoardCards(token,"insights");
   const [data, setData] = useState<{
       commands: { total: number; errors: number; reviews: number };
       tasks: { total: number; done: number };
@@ -1033,6 +1122,7 @@ function ProjectInsights({ token }: { token: string }) {
         </div>
       </div>
       {error && <Notice tone="bad">{error}</Notice>}
+      <label className="studio-check"><input type="checkbox" checked={cards.removed} onChange={e=>cards.setRemoved(e.target.checked)}/>Show removed metrics</label><Button className="mb-3" size="sm" onClick={() => void cards.toggle(null)}>{cards.removed ? "Restore all metrics" : "Remove all metrics"}</Button>{cards.error&&<Notice tone="bad">{cards.error}</Notice>}
       <div className="insight-grid">
         {[
           ["Commands", data?.commands.total],
@@ -1043,10 +1133,10 @@ function ProjectInsights({ token }: { token: string }) {
             data ? `${data.tasks.done} / ${data.tasks.total}` : undefined,
           ],
           ["Room messages", data?.messages],
-        ].map(([label, value]) => (
+        ].filter(([label])=>cards.shown(String(label))).map(([label, value]) => (
           <div className="insight-card" key={label}>
             <span>{label}</span>
-            <strong>{value ?? "—"}</strong>
+            <strong>{value ?? "—"}</strong><button className="studio-inline" onClick={()=>void cards.toggle(String(label))}>{cards.removed?"Restore metric":"Remove metric"}</button>
           </div>
         ))}
       </div>

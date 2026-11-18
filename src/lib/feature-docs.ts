@@ -4,14 +4,35 @@ import type { Connection } from "@/db/schema";
 export function featureDocs(base: string, conn: Connection) {
   const f = featureSettings(conn.features);
   const m = modules(f.modules);
-  return `
+  const docs = `
 ## Optional project features (owner-controlled)
+Mission Control: ${m.missionControl?"ENABLED":"DISABLED"}. When enabled, GET ${base}/workbench?room=<id>&agent=<name>
+returns issue, milestone, memory, runbook, run, release, risk, dependency, permission-profile,
+maintenance, test-case, benchmark and saved-view records. POST the same endpoint with action create/update,
+record:{kind,title,body,owner,status,priority,tags,data}, your agent, and the current revision for updates.
+Read kinds/fields/statuses from GET before creating records. Owners alone can change releases, profiles,
+maintenance, archives and imports. Agents can start a ready runbook with action start_run,id; toggle a
+run step with action toggle_step,id,index,revision; attach finished command evidence to a testcase with
+action attach_result,id,commandId,revision. Do not invent passing results. Release freezes and maintenance
+block new agent mutations; command allowlists, quotas and profile expiry apply to new command requests.
 Communication room: ${f.room ? "ENABLED" : "DISABLED"}
 Uploads: ${f.uploads ? "ENABLED" : "DISABLED"}
 MCP tools: ${f.mcps ? "ENABLED" : "DISABLED"}
 Skills: ${f.skills ? "ENABLED" : "DISABLED"}
 Disabled feature endpoints reject requests. You cannot enable features or change credentials.
 ${f.room ? `
+### Collaboration, private messages, and media
+Keep using this project link for room chat and editor work. For the collaboration board or destructive cleanup, ask the owner for an individual key from Settings → Agents → Link agent. Send X-Agent-Key: <key> on these requests. The server derives your identity from the key.
+GET ${base}/studio?room=<id> returns accessible topics, directory participant IDs, and your actor ID. The owner can always inspect, participate in and delete private chats. Only listed members and the owner can open a private thread.
+POST that same URL with {"action":"create","kind":"survey","title":"Release timing","questions":[{"prompt":"When?","options":["Today","Tomorrow"]}]}. Vote using {"action":"vote","id":123,"choices":[0]} with one zero-based index per question. Vote again to revise or use action withdraw.
+Create Q&A with {action:"create",kind:"question",title,description}. Create private chat with {action:"create",kind:"private",title,members:[agentId,...]}. Post {action:"post",id,text} to answer or speak, including inside private chats. Use accept with postId,value:true for a resolved answer. Other actions: rename(title), describe(description), tags(tags), close/pin/follow(value), duplicate, like(postId,value), editPost(postId,text), removePost(postId), delete. All target a topic id.
+Messages with meta.video carry a clip name, duration, caption and frame timestamps. GET ${base}/videos?id=<messageId>&frames=1 returns ordered JPEG data URLs. GET without frames=1 retrieves the original clip with byte ranges. Interpret frames at their listed times. Audio is available only in the original file.
+To remove a workspace item POST ${base}/cleanup {kind,id,revision?}. Kinds: message, activity, review, asset, reference, task, note, decision, bookmark, handoff, checkpoint, check, workbench, reply, snippet. Owner-only project controls remain protected. Removing a completed activity hides it from the activity list while preserving command accounting.
+To remove or restore display cards in the feature catalog or insights, GET /cards?tab=catalog (or insights) for hidden keys, then POST {action:"hide"|"restore", key:<feature ID or metric label>} to the same URL.
+Record management: GET /records?kind=<collection>&room=<id> lists up to 100 records with a next cursor. Pass before=<next> for the next page. Operations are scoped to the authorized workspace, and to the specified room for messages, topics, planning records and Mission Control.
+Supported collection keys: room, message, video, survey, question, private, task, note, decision, bookmark, handoff, checkpoint, check, reference, asset, activity, review, reply, snippet and workbench:<board kind>.
+DELETE the same URL with JSON {mode:"selected",ids:[123,...]} or {mode:"all"} to remove the specified records or the entire authorized collection. Send the individual agent key in X-Agent-Key. Removing videos preserves captions in chat. Private chats require membership and owner-only project controls require the owner.
+To permanently delete a group room, POST ${base}/rooms {action:"purge",id}. This includes room-scoped content and cannot be undone. The legacy delete action still archives.
 ### Shared communication room
 Role planning gate: ${m.rolePlanning?"ENABLED — follow the mandatory planning steps below":"DISABLED — skip join/ready gating below; still use your stable agent name"}.
 Priority pings: ${m.pingInbox?"ENABLED — read and acknowledge attention messages":"DISABLED — no acknowledgement gate"}.
@@ -40,6 +61,8 @@ Choose a stable name with letters/digits/_/- (start with a letter, max 40; not O
    cannot edit while the room is enabled. Read-only game inspection remains available during planning.
 5. Work only on your agreed role/paths; re-read scripts before replacing them. On completion,
    POST ${base}/room/team {"action":"done","agent":"Builder"}, then report exact changed paths in /room.
+   Include ?room=<your-room-id>. This sets your right-hand agent status to Done, even if you keep polling.
+   A chat message saying you are finished does not mark the role done; always send action done.
    If all roles are done, ask the owner for a new planning round before beginning a new task.
 
 GET ${base}/room?agent=<your-name>&after=<nextCursor> polls messages, the team roster and attention.
@@ -50,6 +73,14 @@ If attention.more is true, keep reading/acknowledging pages. Unacknowledged ping
 POST ${base}/room {"agent":"Builder","kind":"question","text":"@Scripter can you review this?","mentions":["Scripter"],"paths":["Workspace/Map"]}.
 Use @Owner to ping the human, @all for everyone, or another registered AI name. Text @mentions also work.
 Kinds: message, plan, progress, question, decision, done. Read other agents' /commands as well as their messages.
+Playtests: use POST ${base}/command with type run_playtest, your agent and room, and payload
+{mode:"play",duration:15,code:"task.wait(2); assert(workspace:FindFirstChild('Map'), 'Map missing')"}.
+Requires plugin 1.3.0+. Use finite, yielding server checks. Do not batch or send other Studio edits
+until the test finishes. A pending command must be polled via /commands?id; do not start a duplicate.
+Check result.passed, runtimeErrors and logs; command ok only means the plugin delivered a result.
+Play mode includes a player; Run mode is server-only. Tests automatically end after 1–60 seconds
+and remove their temporary runner. They do not simulate user input, prove visual correctness or publish.
+Owner Stop is checked during a test if game HTTP requests are enabled; Studio Stop can end it manually.
 Pings cannot wake a stopped AI or interrupt its currently running tool call. All names/roles are self-reported.
 Roles are a collaboration guard, not a security sandbox or an instance lock; arbitrary Luau can still touch other
 paths. Never run undo over someone else's changes. Owner dashboard actions remain available during planning.
@@ -134,6 +165,13 @@ If search is enabled, GET /room?room=<id>&q=<text> searches persisted history.
 If export is enabled, GET /room?room=<id>&format=md (or json) exports up to the latest 10,000 matching messages and reports truncation.
 If pins are enabled, GET /room?room=<id>&pinned=1 lists pinned messages. Owner-only message moderation/pinning uses the local dashboard.
 Checkpoints, restores, review approvals, project checks, module settings and pause controls are owner actions on the local dashboard. Checkpoints save selected script sources only; they do not back up the whole place.
-The app does not start AI clients, wake sleeping agents, publish games or perform play tests automatically.
+The app does not start AI clients, wake sleeping agents or publish games. Agents can request timed playtests with run_playtest (plugin 1.3.0+).
 `;
+  if(f.mode!=="vscode")return docs;
+  return docs
+    .replace(/Playtests: use POST[\s\S]*?Studio Stop can end it manually\.\n/, "")
+    .replace(/The app does not start AI clients[^\n]*/, "The app does not start AI clients. Use code_* commands for the connected VS Code folder; no Roblox or playtest commands are available in this mode.")
+    .replaceAll("Workspace/Map", "src/map")
+    .replaceAll("ServerScriptService", "src/server")
+    .replaceAll("Studio edits", "project edits");
 }

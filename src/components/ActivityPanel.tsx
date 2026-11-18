@@ -1,4 +1,5 @@
 "use client";
+import DeleteRecord from "./DeleteRecord";
 
 import { useEffect, useState } from "react";
 import { timeAgo } from "@/lib/client";
@@ -123,6 +124,7 @@ export default function ActivityPanel({ token }: { token: string }) {
                   {row.ms !== null && <span className="block text-dim">{row.ms} ms</span>}
                 </span>
               </button>
+              {open&&["done","error"].includes(row.status)&&<DeleteRecord token={token} kind="activity" id={row.id} label="Remove from log" done={()=>setRows(prev=>prev?.filter(r=>r.id!==row.id)??null)}/>}
               {open && (
                 <div className="space-y-3 border-t border-line bg-ink/60 px-4 py-4">
                   {!detail || detail.id !== row.id ? (

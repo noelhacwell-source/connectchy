@@ -2,9 +2,11 @@ import type { ModuleSettings } from "@/lib/modules";
 /** Browser-side helpers shared by the dashboard panels. */
 
 export type Status = {
+  mode?: "roblox" | "vscode";
   modules: ModuleSettings;
   paused: boolean;
   name: string;
+  videoUploadLimitMb: number | null;
   online: boolean;
   placeName: string | null;
   placeId: string | null;
@@ -91,10 +93,20 @@ export const loadSaved = (): Saved[] => parseSaved(readSavedRaw());
 /** For browser-only values that never change while the page is open. */
 export const subscribeNever = () => () => {};
 
+export function subscribeSaved(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener("connectchy:workspaces", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("connectchy:workspaces", callback);
+  };
+}
+
 export function rememberConnection(entry: Saved) {
   try {
     const rest = loadSaved().filter((item) => item.token !== entry.token);
     window.localStorage.setItem(KEY, JSON.stringify([entry, ...rest].slice(0, 30)));
+    window.dispatchEvent(new Event("connectchy:workspaces"));
   } catch {
     // Private mode: the connection still works through its URL.
   }
@@ -103,6 +115,7 @@ export function rememberConnection(entry: Saved) {
 export function forgetConnection(token: string) {
   try {
     window.localStorage.setItem(KEY, JSON.stringify(loadSaved().filter((item) => item.token !== token)));
+    window.dispatchEvent(new Event("connectchy:workspaces"));
   } catch {
     // Nothing to forget.
   }

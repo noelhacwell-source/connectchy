@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { commands } from "@/db/schema";
 import { commandView, findByToken, noStore } from "@/lib/bridge";
@@ -17,6 +17,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   const conn = await findByToken(token);
   if (!conn) return Response.json({ ok: false, error: "Connection not found." }, { status: 404, headers: noStore });
 
+  const visible = sql`not exists (select 1 from workspace_entries e where e.connection_id = ${commands.connectionId} and e.kind = 'hidden_activity' and e.title = ${commands.id}::text)`;
   const q = new URL(req.url).searchParams;
   const id = Number(q.get("id"));
   if (q.get("id")) {
@@ -34,7 +35,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   const rows = await db
     .select()
     .from(commands)
-    .where(eq(commands.connectionId, conn.id))
+    .where(and(eq(commands.connectionId, conn.id),visible))
     .orderBy(desc(commands.id))
     .limit(limit);
 

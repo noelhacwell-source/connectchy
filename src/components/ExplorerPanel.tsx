@@ -42,6 +42,9 @@ export default function ExplorerPanel({ token, online }: { token: string; online
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [checked, setChecked] = useState<string[]>([]);
+  const [confirmBatch, setConfirmBatch] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inspectorRef = useRef<HTMLDivElement>(null);
 
@@ -109,6 +112,29 @@ export default function ExplorerPanel({ token, online }: { token: string; online
     reload([...expanded]);
   };
 
+  function visiblePaths(nodes: TreeNode[], depth = 0): string[] {
+    return nodes.flatMap(node => [
+      ...(depth ? [node.path] : []),
+      ...(expanded.has(node.path) ? visiblePaths(kids[node.path] ?? [], depth + 1) : []),
+    ]);
+  }
+
+  async function removeSelected() {
+    const paths = checked.filter(path => !checked.some(parent => parent !== path && path.startsWith(parent + "/")));
+    setBusy(true);
+    setError(null);
+    const result = await studio<{ failed: number; results: { ok: boolean; error?: string }[] }>(token, "batch", {
+      commands: paths.map(path => ({ type: "delete", payload: { path } })),
+      stopOnError: false,
+    });
+    setConfirmBatch(false);
+    setChecked([]);
+    setSelected(null);
+    await reload([...expanded]);
+    if (!result.ok) setError(result.error ?? "Could not delete the selected instances.");
+    else if (result.result?.failed) setError(result.result.results.flatMap((entry, index) => entry.ok ? [] : [paths[index] + " · " + entry.error]).join("\n"));
+  }
+
   const renderNode = (node: TreeNode, depth: number) => {
     const open = expanded.has(node.path);
     const children = kids[node.path];
@@ -134,6 +160,8 @@ export default function ExplorerPanel({ token, online }: { token: string; online
           ) : (
             <span className="w-7 shrink-0 pointer-coarse:w-9" />
           )}
+          {selecting && depth > 0 && <input type="checkbox" className="mr-2 accent-signal" aria-label={`Select ${node.path}`} checked={checked.includes(node.path)}
+            onChange={event => setChecked(event.target.checked ? [...checked, node.path] : checked.filter(path => path !== node.path))}/>}
           <button
             type="button"
             aria-current={isSelected ? "true" : undefined}
@@ -180,6 +208,18 @@ export default function ExplorerPanel({ token, online }: { token: string; online
             {busy ? "Reading..." : "Refresh"}
           </Button>
         </header>
+        {online && roots && <div className="record-actions border-b border-line p-2">
+          <Button size="sm" onClick={() => { setSelecting(!selecting); setChecked([]); setConfirmBatch(false); }}>{selecting ? "Exit selection" : "Select instances"}</Button>
+          {selecting && <>
+            <Button size="sm" onClick={() => setChecked(visiblePaths(roots))}>Select shown</Button>
+            <Button size="sm" variant="danger" disabled={busy || !checked.length} onClick={() => setConfirmBatch(true)}>Delete {checked.length || ""} selected</Button>
+          </>}
+          {confirmBatch && <div className="record-confirm">
+            <p>Delete the selected instances and their children from Roblox Studio?</p>
+            <Button size="sm" onClick={() => setConfirmBatch(false)}>Cancel</Button>
+            <Button size="sm" variant="danger" disabled={busy} onClick={() => void removeSelected()}>Confirm deletion</Button>
+          </div>}
+        </div>}
         <div className="max-h-[70vh] overflow-auto p-2">
           {!online && (
             <div className="mb-2">

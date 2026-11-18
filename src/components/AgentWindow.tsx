@@ -8,6 +8,7 @@ import {
   Play,
   Power,
   RotateCcw,
+  UserMinus,
   X,
 } from "lucide-react";
 import type { ModuleSettings } from "@/lib/modules";
@@ -34,6 +35,7 @@ type CommandRow = {
  * the live state of the room and Studio session.
  */
 export default function AgentWindow({
+  mode,
   token,
   roomName,
   online,
@@ -48,6 +50,7 @@ export default function AgentWindow({
   onManage,
   onClose,
 }: {
+  mode?: string;
   token: string;
   roomName: string;
   online: boolean;
@@ -94,6 +97,7 @@ export default function AgentWindow({
       (p) => p.agent.toLowerCase() === agent.toLowerCase(),
     );
     if (participant?.control === "removed") return { label: "Removed", tone: "off" };
+    if (participant?.done) return { label: "Done", tone: "done" };
     if (participant?.control === "stopped") return { label: "Stopped", tone: "bad" };
     if (participant?.control === "paused") return { label: "Paused", tone: "wait" };
     if (paused) return { label: "On hold", tone: "wait" };
@@ -132,7 +136,7 @@ export default function AgentWindow({
           <div className="aw-studio-head">
             <span className={`aw-live-pill ${online && !paused ? "live" : ""}`}>
               <span className="aw-live-dot" />
-              {paused ? "Paused" : online ? "Studio online" : "Studio offline"}
+              {paused ? "Paused" : `${mode==="vscode"?"VS Code":"Studio"} ${online?"online":"offline"}`}
             </span>
             <span className="aw-studio-place">{placeName ?? "No place open"}</span>
           </div>
@@ -154,13 +158,13 @@ export default function AgentWindow({
 
         <section>
           <p className="aw-section-label">THE TEAM · {roomName}</p>
-          {!participants.length && !team.participants.length && (
+          {!participants.length && (
             <p className="aw-empty">
               No agents have joined yet. Give each AI your connection prompt so
               it can register a role.
             </p>
           )}
-          {team.participants.map((p) => {
+          {participants.map((p) => {
             const state = stateOf(p.agent);
             const seen = presence.find(
               (s) => s.agent.toLowerCase() === p.agent.toLowerCase(),
@@ -187,7 +191,9 @@ export default function AgentWindow({
                 <p className="aw-agent-task">
                   {removed
                     ? "Removed from this room"
-                    : seen?.task ?? "Waiting for a room check…"}
+                    : p.done
+                      ? "Role completed"
+                      : seen?.task ?? "Waiting for a room check…"}
                 </p>
                 {last && (
                   <p className="aw-agent-last">
@@ -238,6 +244,14 @@ export default function AgentWindow({
                         disabled={busy || p.control === "stopped"}
                       >
                         <Power size={13} />
+                      </button>
+                      <button
+                        title={`Remove ${p.agent} and open a slot for a new AI. Chat history is kept.`}
+                        className="danger"
+                        onClick={() => onManage(p.agent, "remove")}
+                        disabled={busy}
+                      >
+                        <UserMinus size={13} /> Remove AI
                       </button>
                     </>
                   )}

@@ -1,5 +1,7 @@
+import { networkInterfaces } from "node:os";
+
 export class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
-export async function boundedBody(req: Request, max: number) {
+export async function boundedBody(req: Pick<Request, "body" | "headers">, max: number) {
   if (Number(req.headers.get("content-length")) > max) throw new ApiError(413, "Request is too large.");
   const reader = req.body?.getReader();
   const chunks: Uint8Array[] = []; let size = 0;
@@ -23,8 +25,17 @@ export function ownerRequest(req: Request) {
   const host = req.headers.get("host") ?? "";
   const origin = req.headers.get("origin");
   const forwarded = req.headers.get("x-forwarded-for");
-  if (!/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host) || req.headers.has("cf-ray") || (forwarded && !["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(forwarded)) || req.headers.has("forwarded") || (origin && origin !== `http://${host}` && origin !== `https://${host}`)) {
-    throw new ApiError(403, "Manage settings from the local dashboard on this computer (http://127.0.0.1:3000). Agents cannot change credentials or enable integrations.");
+  const localAddresses = new Set(["localhost", "127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+  for (const entries of Object.values(networkInterfaces())) {
+    for (const entry of entries ?? []) {
+      localAddresses.add(entry.address);
+      if (entry.family === "IPv4") localAddresses.add(`::ffff:${entry.address}`);
+    }
+  }
+  let hostname = "";
+  try { hostname = new URL(`http://${host}`).hostname.replace(/^\[|\]$/g, ""); } catch { /* Reject malformed hosts. */ }
+  if (!localAddresses.has(hostname) || req.headers.has("cf-ray") || (forwarded && !localAddresses.has(forwarded)) || req.headers.has("forwarded") || (origin && origin !== `http://${host}` && origin !== `https://${host}`)) {
+    throw new ApiError(403, "Manage settings from this computer's local dashboard using localhost or its local IP address. Public agent links cannot change owner settings.");
   }
 }
 export function apiError(error: unknown) {

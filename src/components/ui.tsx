@@ -1,4 +1,5 @@
 "use client";
+import { copyText } from "@/lib/clipboard";
 
 import { useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 
@@ -48,7 +49,7 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyText(text);
       setState("copied");
     } catch {
       setState("failed");

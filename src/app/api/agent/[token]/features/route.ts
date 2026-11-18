@@ -8,6 +8,7 @@ import { credentials, project, type Context } from "@/lib/project-api";
 import { seal } from "@/lib/secrets";
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,60}$/);
 const schema = z.object({
+  mode: z.enum(["roblox","vscode"]).optional(),
   modules: z.record(z.string(),z.boolean()).default(DEFAULT_MODULES),
   room: z.boolean(), uploads: z.boolean(), mcps: z.boolean(), skills: z.boolean(),
   creatorType: z.enum(["userId", "groupId"]), creatorId: z.string().regex(/^\d{0,24}$/),
@@ -28,7 +29,7 @@ export async function PATCH(req: Request, ctx: Context) {
     const { conn } = await project(ctx), body = await jsonBody(req, 750000);
     const parsed = schema.safeParse(body.settings);
     if (!parsed.success) throw new ApiError(400, parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; "));
-    const settings = { ...parsed.data, modules: { ...DEFAULT_MODULES, ...parsed.data.modules } };
+    const settings = { ...parsed.data, mode:conn.features.mode??"roblox", modules: { ...DEFAULT_MODULES, ...parsed.data.modules } };
     if (settings.servers.some(s => s.id === "studio") || new Set(settings.servers.map(s => s.id)).size !== settings.servers.length || new Set(settings.customSkills.map(s => s.id)).size !== settings.customSkills.length || settings.customSkills.some(s => ["inspect-first", "roblox-ui", "coordinate"].includes(s.id))) throw new ApiError(400, "Server and skill IDs must be unique; studio is reserved.");
     if(Object.keys(settings.modules).some(key=>!(key in DEFAULT_MODULES)))throw new ApiError(400,"Unknown workspace feature.");
     if(settings.modules.protectedPaths&&(!settings.room||!settings.modules.rolePlanning))throw new ApiError(400,"Protected paths require communication and role planning. Disable protected paths first to turn those off.");

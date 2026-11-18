@@ -1,4 +1,5 @@
 import { modules } from "@/lib/modules";
+import {EXPANDED_CODE_COMMANDS,EXPANDED_ROBLOX_COMMANDS} from "./expanded-commands";
 import { and, asc, eq, gt, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { projectRooms, roomMessages, roomReads, type Connection } from "@/db/schema";
@@ -25,6 +26,8 @@ export async function unreadPings(connectionId: number, agent: string, limit = 1
 }
 const READ_ONLY = new Set(["get_tree", "get_instance", "find", "list_scripts", "search_scripts", "get_selection", "get_source", "search_assets", "image_from_decal"]);
 export function changesStudio(type: string, payload: unknown): boolean {
+  if([...EXPANDED_CODE_COMMANDS,...EXPANDED_ROBLOX_COMMANDS].some(c=>c.type===type&&c.read))return false;
+  if (["code_get_workspace","code_list_files","code_read_file","code_search_files","code_get_active_editor","code_get_diagnostics"].includes(type)) return false;
   if (type === "batch") {
     const commands = (payload as { commands?: { type: string; payload?: unknown }[] })?.commands;
     return !Array.isArray(commands) || commands.some(c => !c || typeof c.type !== "string" || changesStudio(c.type, c.payload));

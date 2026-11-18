@@ -8,18 +8,18 @@ export const dynamic = "force-dynamic";
 
 /** Create a connection. The token is returned once; only its hash is stored. */
 export async function POST(req: Request) {
-  let body: { name?: unknown; origin?: unknown } = {};
+  let body: { name?: unknown; origin?: unknown; mode?:unknown } = {};
   try {
     body = await req.json();
   } catch {
     // Name is optional.
   }
-  const name = (typeof body.name === "string" ? body.name.trim() : "").slice(0, 60) || "My Roblox game";
+  const name = (typeof body.name === "string" ? body.name.trim() : "").slice(0, 60) || (body.mode==="vscode"?"My code project":"My Roblox game");
   const token = newToken();
 
   await db.insert(connections).values({
     name,
-    features: {...DEFAULT_FEATURES,room:true},
+    features: {...DEFAULT_FEATURES,room:true,mode:body.mode==="vscode"?"vscode":"roblox",...(body.mode==="vscode"?{modules:{...DEFAULT_FEATURES.modules!,gameReferences:false,assetLibrary:false,checkpoints:false,checks:false}}:{})},
     origin: publicOrigin() ?? cleanOrigin(body.origin),
     tokenHash: sha(token),
     pluginKeyHash: sha(derivePluginKey(token)),

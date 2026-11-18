@@ -1,4 +1,5 @@
-import { index, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { bigint, customType, index, integer, jsonb, pgTable, primaryKey, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { DEFAULT_VIDEO_LIMIT_MB } from "@/lib/video-limits";
 import { DEFAULT_FEATURES, type FeatureSettings } from "@/lib/features";
 import { DEFAULT_TEAM, type TeamPlan } from "@/lib/team-types";
 
@@ -23,6 +24,7 @@ export const connections = pgTable(
     credentials: text("credentials"),
     team: jsonb("team").$type<TeamPlan>().notNull().default(DEFAULT_TEAM),
     activeRoomId: integer("active_room_id"),
+    videoUploadLimitMb: bigint("video_upload_limit_mb", { mode: "number" }).default(DEFAULT_VIDEO_LIMIT_MB),
     paused: integer("paused").notNull().default(0),
     stopRevision:integer("stop_revision").notNull().default(0),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
@@ -138,3 +140,38 @@ export const agentPresence = pgTable("agent_presence", {
 },t=>[uniqueIndex("presence_room_agent_idx").on(t.roomId,t.agent)]);
 
 export const chatReceipts=pgTable("chat_receipts",{id:serial("id").primaryKey(),roomId:integer("room_id").notNull().references(()=>projectRooms.id,{onDelete:"cascade"}),agent:text("agent").notNull(),through:integer("through").notNull().default(0),updatedAt:timestamp("updated_at",{withTimezone:true}).notNull().defaultNow()},t=>[uniqueIndex("chat_receipt_agent_idx").on(t.roomId,t.agent)]);
+export const studioAgents = pgTable("studio_agents", {
+  id: serial("id").primaryKey(),
+  connectionId: integer("connection_id").notNull().references(() => connections.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  handle: text("handle").notNull(),
+  keyHash: text("key_hash").notNull(),
+  provider: text("provider"),
+  model: text("model"),
+  secret: text("secret"),
+  instructions: text("instructions").notNull().default(""),
+}, t => [uniqueIndex("studio_agent_name_idx").on(t.connectionId, t.handle)]);
+export const studioTopics = pgTable("studio_topics", {
+  id: serial("id").primaryKey(),
+  roomId: integer("room_id").notNull().references(() => projectRooms.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  title: text("title").notNull(),
+  author: text("author").notNull(),
+  members: jsonb("members").$type<number[]>().notNull().default([]),
+  content: jsonb("content").$type<import("@/lib/studio-types").TopicContent>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [index("studio_topic_room_idx").on(t.roomId)]);
+export const studioVideos = pgTable("studio_videos", {
+  messageId: integer("message_id").primaryKey().references(() => roomMessages.id, { onDelete: "cascade" }),
+  mime: text("mime").notNull(),
+  original: text("original").notNull(),
+  sizeBytes: bigint("size_bytes", { mode: "number" }),
+  frames: jsonb("frames").$type<string[]>().notNull(),
+});
+
+const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
+export const studioVideoChunks = pgTable("studio_video_chunks", {
+  messageId: integer("message_id").notNull().references(() => studioVideos.messageId, { onDelete: "cascade" }),
+  part: integer("part").notNull(),
+  bytes: bytea("bytes").notNull(),
+}, t => [primaryKey({ columns: [t.messageId, t.part] })]);

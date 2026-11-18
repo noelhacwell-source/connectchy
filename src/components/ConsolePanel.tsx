@@ -4,6 +4,7 @@ import { useState, type KeyboardEvent } from "react";
 import { studio, type CmdResult } from "@/lib/client";
 import { COMMAND_DOCS } from "@/lib/command-docs";
 import { Button, JsonView, Notice, Panel, inputClass } from "./ui";
+import PlaytestPanel from "./PlaytestPanel";
 
 const GROUPS = ["Read", "Build", "Scripts", "Assets", "Control"] as const;
 const STARTER = "-- Runs inside Studio with the full plugin API.\n-- Whatever you return or print comes back here.\nreturn #workspace:GetDescendants()";
@@ -57,6 +58,7 @@ export default function ConsolePanel({ token, online }: { token: string; online:
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
+      <div className="lg:col-span-2"><PlaytestPanel/></div>
       <Panel
         title="Send to Studio"
         action={
@@ -135,7 +137,7 @@ export default function ConsolePanel({ token, online }: { token: string; online:
         </div>
       </Panel>
 
-      <Panel title="Result">
+      <Panel title="Result" action={output&&<Button size="sm" onClick={()=>setOutput(null)}>Clear output</Button>}>
         {busy ? (
           <p className="text-sm text-muted">Waiting for Studio...</p>
         ) : !output ? (

@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { COMMAND_DOCS } from "@/lib/command-docs";
+import { isVSCode, VSCODE_COMMANDS } from "@/lib/vscode";
 import { runCommand } from "@/lib/bridge";
 import type { Connection } from "@/db/schema";
 import { featureSettings } from "@/lib/features";
@@ -14,8 +15,9 @@ export async function mcpCall(conn: Connection, serverId: string, method: "tools
   if(method==="tools/call"){const blocked=await agentControlError(conn,args?._agent);if(blocked)throw new ApiError(423,blocked);}
   if (!settings.mcps) throw new ApiError(403, "MCP tools are disabled.");
   if (serverId === "studio") {
-    if (method === "tools/list") return { tools: COMMAND_DOCS.map(c => ({ name: c.type, description: `${c.summary} Payload: ${c.payload}. When the room is enabled, edits require a ready role and _agent in arguments.`, inputSchema: { type: "object", properties: { _agent: { type: "string", description: "Your registered room agent name" } }, additionalProperties: true } })) };
-    if (!COMMAND_DOCS.some(c => c.type === name)) throw new ApiError(404, "Unknown Studio tool.");
+    const commands = isVSCode(conn.features) ? VSCODE_COMMANDS : COMMAND_DOCS;
+    if (method === "tools/list") return { tools: commands.map(c => ({ name: c.type, description: `${c.summary} Payload: ${c.payload}. When the room is enabled, edits require a ready role and _agent in arguments.`, inputSchema: { type: "object", properties: { _agent: { type: "string", description: "Your registered room agent name" } }, additionalProperties: true } })) };
+    if (!commands.some(c => c.type === name)) throw new ApiError(404, "Unknown Studio tool.");
     const { _agent, _room, ...payload } = args ?? {};
     const result = await runCommand(conn, { type: name, payload, agent: _agent, room: _room });
     return { content: [{ type: "text", text: JSON.stringify(result.body) }], isError: result.status >= 400 || (result.status === 200 && (result.body as { ok?: boolean }).ok === false) };

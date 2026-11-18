@@ -2,8 +2,16 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
+import 'dotenv/config';
+import { ensureDatabase, watchDatabase } from './local-database.mjs';
+import { ensureCollaborationSchema } from './collaboration-schema.mjs';
 const dir = path.resolve('.local-runtime');
 mkdirSync(dir, { recursive: true });
+let stopDatabaseWatch;
+if (!process.argv.includes('--tunnel-only')) {
+  try { await ensureDatabase(process.env.DATABASE_URL); await ensureCollaborationSchema(process.env.DATABASE_URL); stopDatabaseWatch=watchDatabase(process.env.DATABASE_URL); }
+  catch (error) { console.error(error.message); process.exit(1); }
+}
 const state = path.join(dir, 'public-origin.json');
 let existing;
 try {
@@ -20,7 +28,21 @@ const binary = candidates.find(p => p && existsSync(p)) || 'cloudflared';
 const port = process.env.PORT || '3000';
 const tunnel = existing ? undefined : spawn(binary, ['tunnel', '--url', `http://127.0.0.1:${port}`, '--no-autoupdate'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
 let currentOrigin;
-function persist() { if (currentOrigin && tunnel?.pid) { const data=JSON.stringify({ origin: currentOrigin, pid: tunnel.pid }); writeFileSync(state,data);writeFileSync(path.join(dir,'tunnel-process.json'),data); } }
+let persistFailed = false;
+function persist() {
+  if (!currentOrigin || !tunnel?.pid) return;
+  try {
+    const data = JSON.stringify({ origin: currentOrigin, pid: tunnel.pid });
+    writeFileSync(state, data);
+    writeFileSync(path.join(dir, 'tunnel-process.json'), data);
+    persistFailed = false;
+  } catch (error) {
+    // Windows can temporarily lock a status file. Retry on the next heartbeat
+    // without taking down the app or its tunnel.
+    if (!persistFailed) console.error('Could not update tunnel status; will retry:', error.message);
+    persistFailed = true;
+  }
+}
 function clearOwnedState() {
   try { if (tunnel && JSON.parse(readFileSync(state,'utf8')).pid === tunnel.pid) rmSync(state,{force:true}); } catch { /* No owned state remains. */ }
 }
@@ -40,9 +62,9 @@ tunnel?.on('error', error => { clearInterval(heartbeat); console.error('Could no
 tunnel?.on('exit', () => { clearInterval(heartbeat); clearOwnedState(); });
 let app;
 if (!process.argv.includes('--tunnel-only')) {
-  app = spawn(process.execPath, ['node_modules/next/dist/bin/next', process.argv.includes('--production') ? 'start' : 'dev', '--hostname', '127.0.0.1', '--port', port], { windowsHide: true, stdio: 'inherit' });
-  app.on('exit', code => { tunnel?.kill(); process.exitCode = code || 0; });
+  app = spawn(process.execPath, ['node_modules/next/dist/bin/next', process.argv.includes('--production') ? 'start' : 'dev', '--hostname', '0.0.0.0', '--port', port], { windowsHide: true, stdio: 'inherit' });
+  app.on('exit', code => { stopDatabaseWatch?.(); tunnel?.kill(); process.exitCode = code || 0; });
 }
-function stop() { clearInterval(heartbeat); tunnel?.kill(); app?.kill(); clearOwnedState(); }
+function stop() { stopDatabaseWatch?.(); clearInterval(heartbeat); tunnel?.kill(); app?.kill(); clearOwnedState(); }
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);

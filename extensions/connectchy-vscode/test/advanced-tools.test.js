@@ -1,0 +1,63 @@
+'use strict';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {execFileSync}=require('node:child_process');
+const {ProjectFiles,sha}=require('../src/project-files');
+const {createAdvancedTools,TYPES}=require('../src/advanced-tools');
+test('checkpoint recovery, safe file lifecycle, patching, providers and Git boundaries',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'connectchy-advanced-')),file=path.join(root,'main.js');await fs.writeFile(file,'var answer = 1;');
+ const state=new Map(),documents=new Map();let approved=true,providerValues=[],lastWrite;
+ const signal=new AbortController().signal,s={root,files:new ProjectFiles(root),context:{workspaceState:{get:(key,fallback)=>state.get(key)??fallback,update:async(key,value)=>state.set(key,value)}}};
+ function positionAt(text,n){const lines=text.slice(0,n).split('\n');return {line:lines.length-1,character:lines.at(-1).length};}
+ function offsetAt(text,p){return text.split('\n').slice(0,p.line).reduce((n,line)=>n+line.length+1,0)+p.character;}
+ const read=async(s,relative)=>{const full=await s.files.resolve(relative);if(!documents.has(full)){let text=await s.files.readDisk(relative);documents.set(full,{uri:{fsPath:full,scheme:'file'},getText:()=>text,setText:value=>{text=value;},isDirty:false,lineCount:text.split('\n').length,lineAt:i=>({text:text.split('\n')[i]}),offsetAt:p=>offsetAt(text,p),positionAt:n=>positionAt(text,n),save:async()=>{await fs.writeFile(full,text);return true;}});}const document=documents.get(full),content=document.getText();return {document,content,sha256:sha(content)};};
+ const vscode={Uri:{file:fsPath=>({fsPath,scheme:'file'})},Position:class{constructor(line,character){this.line=line;this.character=character;}},Range:class{constructor(start,end){this.start=start;this.end=end;}},WorkspaceEdit:class{ops=[];replace(uri,range,content){this.ops.push({uri,content});}renameFile(from,to){this.ops.push({from,to});}},workspace:{async applyEdit(edit){for(const op of edit.ops){if(op.from){await fs.rename(op.from.fsPath,op.to.fsPath);documents.delete(op.from.fsPath);}else{(await read(s,s.files.relative(op.uri.fsPath))).document.setText(op.content);}}return true;},fs:{async delete(uri,options){assert.equal(options.useTrash,true);await fs.rename(uri.fsPath,path.join(root,'trash-'+path.basename(uri.fsPath)));documents.delete(uri.fsPath);}}},commands:{async executeCommand(){return providerValues;}}};
+ const api={vscode,read,ensureCurrent:(s,signal)=>{if(signal.aborted)throw new Error('Cancelled');},guard:async()=>{},approve:async()=>{if(!approved)throw new Error('Declined');},execute:async(s,command)=>{lastWrite=command.payload;return {proposed:true};}};
+ const advanced=createAdvancedTools(api),run=(type,payload={})=>advanced.execute(s,{id:7,type,payload},signal);
+ try {
+  assert.equal(TYPES.length,23);
+  const snap=await run('code_snapshot_files',{paths:['main.js'],label:'baseline'});assert.equal(snap.files[0].sha256,sha('var answer = 1;'));
+  documents.get(file).setText('var answer = 2;');await documents.get(file).save();
+  let compare=await run('code_compare_snapshot',{id:snap.id});assert.equal(compare.files[0].changed,true);
+  await assert.rejects(()=>run('code_restore_snapshot',{id:snap.id,expectedSha256:{'main.js':'stale'}}));
+  approved=false;await assert.rejects(()=>run('code_restore_snapshot',{id:snap.id,expectedSha256:{'main.js':compare.files[0].currentSha256}}));assert.equal(await fs.readFile(file,'utf8'),'var answer = 2;');approved=true;
+  await run('code_restore_snapshot',{id:snap.id,expectedSha256:{'main.js':compare.files[0].currentSha256}});assert.equal(await fs.readFile(file,'utf8'),'var answer = 1;');
+  await run('code_patch_file',{path:'main.js',find:'answer',replace:'result',expectedSha256:sha('var answer = 1;')});assert.equal(lastWrite.content,'var result = 1;');
+  await assert.rejects(()=>run('code_patch_file',{path:'main.js',find:'missing',replace:'x',expectedSha256:sha('var answer = 1;')}));
+  const saved=await run('code_read_snapshot_file',{id:snap.id,path:'main.js'});assert.equal(saved.content,'var answer = 1;');
+  await run('code_create_directory',{path:'src/new'});assert((await fs.stat(path.join(root,'src/new'))).isDirectory());
+  await assert.rejects(()=>run('code_create_directory',{path:'../outside'}));
+  providerValues=[{name:'answer',kind:13,range:{start:{line:0,character:4}}}];assert.equal((await run('code_document_symbols',{path:'main.js'})).symbols[0].name,'answer');
+  providerValues=[{uri:{scheme:'file',fsPath:file},range:{start:{line:0,character:4}}},{uri:{scheme:'file',fsPath:path.join(root,'..','outside.js')},range:{start:{line:0,character:0}}}];
+  assert.equal((await run('code_find_references',{path:'main.js',line:1,column:5})).locations.length,1);
+  assert.equal((await run('code_find_definition',{path:'main.js',line:1,column:5})).locations.length,1);
+  assert.equal((await run('code_find_type_definition',{path:'main.js',line:1,column:5})).locations.length,1);
+  assert.equal((await run('code_workspace_symbols',{query:'answer'})).symbols.length,1);
+  await assert.rejects(()=>run('code_hover',{path:'main.js',line:999,column:1}));
+  providerValues=[{contents:[{value:'A number'}]}];assert((await run('code_hover',{path:'main.js',line:1,column:5})).contents.includes('A number'));
+  providerValues=[{range:{start:{line:0,character:0},end:{line:0,character:3}},newText:'let'}];await run('code_format_document',{path:'main.js',expectedSha256:sha('var answer = 1;')});assert.equal(lastWrite.content,'let answer = 1;');
+  const git=args=>execFileSync('git',args,{cwd:root,windowsHide:true,stdio:'pipe'});
+  git(['init']);git(['config','user.name','Fixture']);git(['config','user.email','fixture@example.invalid']);await fs.writeFile(path.join(root,'.env'),'PRIVATE_SECRET=hidden');git(['add','main.js','.env']);git(['commit','-m','Fixture']);
+  assert((await run('code_git_log')).output.includes('Fixture'));assert((await run('code_git_branches')).output.trim());assert((await run('code_git_blame',{path:'main.js'})).output.includes('answer'));
+  await fs.writeFile(file,'var answer = 3;');documents.delete(file);assert((await run('code_git_status')).output.includes('main.js'));assert((await run('code_git_diff',{path:'main.js'})).output.includes('var answer = 3'));
+  await assert.rejects(()=>run('code_git_diff',{path:'.env'}));await assert.rejects(()=>run('code_git_diff',{path:'.'}));await assert.rejects(()=>run('code_git_blame',{path:'../outside.js'}));
+  const current=await read(s,'main.js');await run('code_rename_file',{from:'main.js',to:'renamed.js',expectedSha256:current.sha256});assert((await fs.stat(path.join(root,'renamed.js'))).isFile());
+  await run('code_delete_file',{path:'renamed.js',expectedSha256:sha('var answer = 3;')});assert((await fs.stat(path.join(root,'trash-renamed.js'))).isFile());
+  await fs.writeFile(path.join(root,'first.txt'),'one');
+  await fs.writeFile(path.join(root,'second.txt'),'two');
+  approved=false;
+  await assert.rejects(()=>run('code_trash_files',{paths:['first.txt','second.txt']}),/Declined/);
+  assert.equal(await fs.readFile(path.join(root,'first.txt'),'utf8'),'one');
+  approved=true;
+  const batch=await run('code_trash_files',{paths:['first.txt','second.txt']});
+  assert.deepEqual(batch.trashed,['first.txt','second.txt']);
+  assert.deepEqual(batch.skipped,[]);
+  assert.equal((await run('code_list_snapshots')).snapshots.at(-1).id,batch.snapshot);
+  assert.equal(await fs.readFile(path.join(root,'trash-second.txt'),'utf8'),'two');
+  for(let i=0;i<11;i++)await run('code_snapshot_files',{paths:['trash-renamed.js'],label:'retention '+i});assert.equal((await run('code_list_snapshots')).snapshots.length,10);
+  const latest=(await run('code_list_snapshots')).snapshots.at(-1);await run('code_delete_snapshot',{id:latest.id});assert.equal((await run('code_list_snapshots')).snapshots.length,9);
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});

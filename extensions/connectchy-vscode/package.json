@@ -1,0 +1,86 @@
+{
+  "name": "connectchy-vscode",
+  "displayName": "Connectchy — AI Workspace",
+  "description": "Connect your VS Code project to a shared AI team in Connectchy.",
+  "version": "0.3.0",
+  "publisher": "connectchy-local",
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./src/extension.js",
+  "extensionKind": [
+    "ui"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    },
+    "virtualWorkspaces": false
+  },
+  "activationEvents": [
+    "onView:connectchy.connection"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "connectchy.connect",
+        "title": "Connectchy: Connect Project"
+      },
+      {
+        "command": "connectchy.disconnect",
+        "title": "Connectchy: Disconnect"
+      },
+      {
+        "command": "connectchy.openDashboard",
+        "title": "Connectchy: Open Dashboard"
+      },
+      {
+        "command": "connectchy.showOutput",
+        "title": "Connectchy: Show Connection Log"
+      },
+      {
+        "command": "connectchy.toggleAgentMode",
+        "title": "Connectchy: Toggle Agent Mode"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "connectchy",
+          "title": "Connectchy",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "connectchy": [
+        {
+          "id": "connectchy.connection",
+          "name": "AI Connection"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Connectchy",
+      "properties": {
+        "connectchy.serverUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:3000",
+          "description": "Your local Connectchy app address. Open the app and create a VS Code workspace first."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "package": "vsce package --no-dependencies --allow-missing-repository -o ../../public/downloads/connectchy-vscode.vsix"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.7.0",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}

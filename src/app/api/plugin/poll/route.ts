@@ -10,6 +10,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const text = (value: unknown, max: number) => (typeof value === "string" ? value.slice(0, max) : null);
 
 type PollBody = {
+  client?: unknown;
   version?: unknown;
   noWait?: unknown;
   place?: { name?: unknown; placeId?: unknown };
@@ -30,6 +31,7 @@ export async function POST(req: Request) {
   } catch {
     // An empty body is a valid heartbeat.
   }
+  if ((conn.features.mode === "vscode") !== (body.client === "vscode")) return Response.json({error:"Wrong client for this workspace mode."},{status:403,headers:noStore});
 
   for (const entry of Array.isArray(body.results) ? body.results : []) {
     const id = Number(entry?.id);
@@ -100,7 +102,7 @@ export async function POST(req: Request) {
       .update(commands)
       .set({ status: "sent", sentAt: new Date() })
       .where(and(eq(commands.connectionId, conn.id), eq(commands.status, "pending"), sql`exists(select 1 from connections where id=${conn.id} and paused=0)`,sql`(${commands.source}='dashboard' or not exists(select 1 from project_rooms r cross join lateral jsonb_array_elements(r.team->'participants') p where r.id=(select active_room_id from connections where id=${conn.id}) and p->>'control' in ('paused','stopped','removed') and (${commands.agent} is null or lower(p->>'agent')=lower(${commands.agent}))))`))
-      .returning({ id: commands.id, type: commands.type, payload: commands.payload });
+      .returning({ id: commands.id, type: commands.type, payload: commands.payload, agent: commands.agent });
 
     if (claimed.length > 0 || Date.now() >= deadline || req.signal.aborted) {
       claimed.sort((a, b) => a.id - b.id);

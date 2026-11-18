@@ -1,4 +1,5 @@
 "use client";
+import DeleteRecord from "./DeleteRecord";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -418,8 +419,9 @@ export default function GameReferences({ token }: { token: string }) {
                     <ArrowUpRight size={13} />
                     Game page
                   </a>
+                  <DeleteRecord token={token} kind="reference" id={r.id} title={r.title} done={load}/>
                   <button
-                    aria-label={`Remove ${r.title}`}
+                    aria-label={`Archive ${r.title}`}
                     className="icon-button"
                     disabled={busy}
                     onClick={() => void action({ action: "delete", id: r.id })}

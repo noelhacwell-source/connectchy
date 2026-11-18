@@ -1,4 +1,6 @@
 "use client";
+import DeleteRecord from "./DeleteRecord";
+import { copyText } from "@/lib/clipboard";
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import {
@@ -191,8 +193,7 @@ export function ChatMessageExtras({
               key={a.assetId}
               title={`Copy rbxassetid://${a.assetId}`}
               onClick={() =>
-                navigator.clipboard
-                  .writeText(`rbxassetid://${a.assetId}`)
+                copyText(`rbxassetid://${a.assetId}`)
                   .catch(() => setError("Clipboard unavailable."))
               }
             >
@@ -991,7 +992,7 @@ export function ChatToolbox({
                       }}
                     >
                       Restore message
-                    </Button>
+                    </Button><DeleteRecord token={token} kind="message" id={message.id} done={()=>setTrash(p=>p.filter(m=>m.id!==message.id))}/>
                   </article>
                 ))}
               </div>
@@ -1010,8 +1011,7 @@ export function CopyableCode({ children }: { children?: React.ReactNode }) {
       <button
         title="Copy code block"
         onClick={() =>
-          navigator.clipboard
-            .writeText(text)
+          copyText(text)
             .then(() => {
               setValue(true);
               setTimeout(() => setValue(false), 1200);

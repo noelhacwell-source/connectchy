@@ -1,4 +1,5 @@
 export const MODULES = [
+  ["missionControl","Mission Control","Workspace","Issues, milestones, memory, runbooks, tests, releases and agent policies.",true],
   [
     "taskBoard",
     "Task board",

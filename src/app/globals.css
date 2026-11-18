@@ -3651,6 +3651,9 @@ body {
 .aw-state.live {
   color: #b7e391;
 }
+.aw-state.done {
+  color: #b7e391;
+}
 .aw-state.wait {
   color: #e0c07a;
 }
@@ -3955,3 +3958,7 @@ body {
     flex-wrap: wrap;
   }
 }
+
+/* Mission Control boards */
+.mission-control{display:grid;gap:18px;max-width:1440px;margin:auto}.mc-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}.mc-metrics>div{padding:16px;border:1px solid var(--color-line,#303239);border-radius:12px;background:var(--color-panel,#191b20);display:grid;gap:8px}.mc-metrics span{font-size:12px;color:#9196a1}.mc-metrics strong{font-size:25px}.mc-session{display:flex;gap:20px;align-items:end;justify-content:space-between;flex-wrap:wrap}.mc-session>label{flex:1;min-width:240px;font-size:12px;color:#a8adb8}.mc-session>div{display:flex;align-items:center;gap:8px}.mc-tabs{display:flex;gap:7px;flex-wrap:wrap}.mc-tabs button{display:flex;gap:9px;align-items:center;padding:9px 12px;border:1px solid #303239;border-radius:8px;font-size:12px}.mc-tabs button[aria-pressed=true]{border-color:#b7e391;color:#b7e391;background:#b7e39112}.mc-tabs button span{opacity:.55}.mc-toolbar{display:grid;grid-template-columns:2fr repeat(4,1fr);gap:8px}.mc-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.mc-actions label{font-size:12px;display:flex;gap:5px;align-items:center}.mc-records{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,370px),1fr));gap:12px}.mc-record{display:grid;align-content:start;gap:12px;padding:18px;border:1px solid #303239;border-radius:12px;background:#191b20}.mc-record header{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.mc-record h3{flex:1;font-size:16px;font-weight:600}.mc-record footer{display:flex;gap:7px;flex-wrap:wrap;padding-top:7px}.mc-step{display:flex;gap:9px;font-size:13px}.mc-form{display:grid;gap:14px}.mc-form>label{display:grid;gap:6px;font-size:12px;text-transform:capitalize}.mc-form h2{font-size:24px;margin-bottom:10px}.mc-compact{grid-template-columns:1fr}.mc-compact .mc-record{padding:12px;gap:6px}@media(max-width:800px){.mc-toolbar{grid-template-columns:1fr 1fr}.mc-toolbar>input{grid-column:1/-1}.mc-session>div{flex-wrap:wrap}}
+.mc-details{font-size:12px;border-top:1px solid #303239;padding-top:10px}.mc-details summary{cursor:pointer;color:#a8adb8}.mc-details dl{display:grid;gap:9px;margin-top:12px}.mc-details dl>div{display:grid;grid-template-columns:35% 1fr;gap:10px}.mc-details dt{color:#9298a3}.mc-details dd{white-space:pre-wrap;overflow-wrap:anywhere}

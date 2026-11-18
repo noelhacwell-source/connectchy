@@ -26,8 +26,8 @@ export async function protectionError(
     );
   const inspect = (command: string, value: unknown): string | null => {
     const p = (value ?? {}) as Record<string, unknown>;
-    if (["run_luau", "undo", "redo"].includes(command))
-      return "Protected paths block AI Luau and global undo/redo. Ask the owner to perform a reviewed action.";
+    if (["run_luau", "run_playtest", "code_build", "code_test", "code_run_command", "undo", "redo"].includes(command))
+      return "Protected paths block unrestricted code execution, terminal commands, playtests and global undo/redo. Ask the owner to perform a reviewed action.";
     if (command === "batch") {
       if (!Array.isArray(p.commands)) return "Invalid batch.";
       for (const child of p.commands) {
@@ -43,7 +43,13 @@ export async function protectionError(
     if (properties && "Parent" in properties)
       return "Use move for parenting; Parent properties are blocked in protected paths.";
     const targets: unknown[] = [];
-    if (["create_instance", "create_script"].includes(command))
+    if (command === "code_trash_files") {
+      if (!Array.isArray(p.paths) || !p.paths.length) return "Provide explicit file paths.";
+      targets.push(...p.paths);
+    }
+    else if(command==="code_rename_file")targets.push(p.from,p.to);
+    else if(command==="code_restore_snapshot"&&p.expectedSha256&&typeof p.expectedSha256==="object")targets.push(...Object.keys(p.expectedSha256));
+    else if (["create_instance", "create_script"].includes(command))
       targets.push(p.name ? `${p.parent}/${p.name}` : p.parent);
     else if (command === "insert_asset") targets.push(p.parent ?? "Workspace");
     else if (command === "clone")

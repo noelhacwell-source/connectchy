@@ -9,7 +9,7 @@ export async function GET(req: Request, ctx: Context) {
     if (!settings.mcps) throw new ApiError(403, "MCP tools are disabled.");
     const id = new URL(req.url).searchParams.get("server");
     if (id) return Response.json(await mcpCall(conn, id, "tools/list"));
-    return Response.json({ servers: [{ id: "studio", name: "Roblox Studio (built in)" }, ...settings.servers.filter(s => s.enabled).map(({ id, name }) => ({ id, name }))] }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ servers: [{ id: "studio", name: settings.mode==="vscode"?"Visual Studio Code (built in)":"Roblox Studio (built in)" }, ...settings.servers.filter(s => s.enabled).map(({ id, name }) => ({ id, name }))] }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) { return apiError(e); }
 }
 export async function POST(req: Request, ctx: Context) {

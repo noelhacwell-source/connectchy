@@ -1,4 +1,6 @@
 "use client";
+import DeleteRecord from "./DeleteRecord";
+import { copyText } from "@/lib/clipboard";
 import WorkspaceDialog from "./WorkspaceDialog";
 import { diffLines } from "diff";
 import { useCallback, useEffect, useState } from "react";
@@ -430,8 +432,7 @@ export default function WorkspaceTools({
                     className="icon-button"
                     aria-label="Copy item"
                     onClick={() =>
-                      navigator.clipboard
-                        .writeText(`${entry.title}\n\n${entry.body}`)
+                      copyText(`${entry.title}\n\n${entry.body}`)
                         .catch(() =>
                           setError(
                             "Clipboard unavailable. Select and copy the text.",
@@ -510,7 +511,7 @@ export default function WorkspaceTools({
               )}
               {confirmDelete === entry.id && (
                 <div className="mt-3 flex items-center gap-2 text-sm">
-                  <span>Archive this item?</span>
+                  <DeleteRecord token={token} kind={kind} id={entry.id} revision={entry.revision} title={entry.title} done={load}/><span>or</span>
                   <Button
                     size="sm"
                     disabled={busy}
@@ -623,7 +624,7 @@ export default function WorkspaceTools({
                 >
                   <option value="">Unassigned</option>
                   <option value="Owner">You</option>
-                  {team.participants.map((p) => (
+                  {team.participants.filter(p => p.control !== "removed").map((p) => (
                     <option key={p.agent} value={p.agent}>
                       {p.agent}
                     </option>
@@ -631,7 +632,7 @@ export default function WorkspaceTools({
                   {owner &&
                     ![
                       "Owner",
-                      ...team.participants.map((p) => p.agent),
+                      ...team.participants.filter(p => p.control !== "removed").map((p) => p.agent),
                     ].includes(owner) && <option>{owner}</option>}
                 </select>
               </label>
@@ -714,6 +715,7 @@ export default function WorkspaceTools({
               </div>
             )}
             <div className="mt-6 flex justify-end gap-2">
+              {editing&&<DeleteRecord token={token} kind={kind} id={editing.id} revision={editing.revision} title={editing.title} done={async()=>{await load();setEditor(false);}}/>}
               {editing && (
                 <Button
                   variant="danger"
@@ -817,7 +819,7 @@ export function ReviewPanel({ token }: { token: string }) {
                   onClick={() => void handle(r.id, "reject")}
                 >
                   Reject
-                </Button>
+                </Button><DeleteRecord token={token} kind="review" id={r.id} done={load}/>
                 <Button
                   variant="primary"
                   size="sm"
@@ -941,7 +943,7 @@ export function AssetLibrary({ token }: { token: string }) {
                 <span>{a.assetType}</span>
               </div>
               <div className="p-4">
-                <h3 className="truncate text-sm font-medium">{a.filename}</h3>
+                <h3 className="truncate text-sm font-medium">{a.filename}</h3><DeleteRecord token={token} kind="asset" id={a.id} title={a.filename} done={()=>setAssets(prev=>prev.filter(item=>item.id!==a.id))}/>
                 <p className="mt-1 text-xs text-dim">
                   Asset {a.result?.response?.assetId ?? "ID unavailable"}
                 </p>
@@ -950,8 +952,7 @@ export function AssetLibrary({ token }: { token: string }) {
                   size="sm"
                   disabled={!a.result?.response?.assetId}
                   onClick={() =>
-                    navigator.clipboard
-                      .writeText(`rbxassetid://${a.result?.response?.assetId}`)
+                    copyText(`rbxassetid://${a.result?.response?.assetId}`)
                       .catch(() => setError("Clipboard unavailable."))
                   }
                 >

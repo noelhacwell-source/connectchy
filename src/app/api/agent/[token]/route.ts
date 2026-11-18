@@ -5,6 +5,8 @@ import { connections } from "@/db/schema";
 import { cleanOrigin, findByToken, isOnline, noStore, originFromRequest } from "@/lib/bridge";
 import { buildAgentDocs } from "@/lib/command-docs";
 import { featureDocs } from "@/lib/feature-docs";
+import { ownerRequest, apiError } from "@/lib/http-utils";
+import { isVSCode, vsCodeDocs } from "@/lib/vscode";
 
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ token: string }> };
@@ -21,7 +23,7 @@ export async function GET(req: Request, { params }: Ctx) {
   }
   // Prefer the address the owner's browser really uses; proxy headers are only a fallback.
   const base = `${publicOrigin() ?? conn.origin ?? originFromRequest(req)}/api/agent/${token}`;
-  return new Response(buildAgentDocs(base, conn.name, isOnline(conn), conn.placeName) + featureDocs(base, conn), {
+  return new Response((isVSCode(conn.features)?vsCodeDocs(base,conn.name,isOnline(conn)):buildAgentDocs(base, conn.name, isOnline(conn), conn.placeName)) + `\n\nLive verification\nGET ${base}/status for the latest editor heartbeat. Confirm room registration with GET ${base}/room/team after joining. List clips with GET ${base}/videos?room=ROOM_ID and request timestamped JPEG samples with GET ${base}/videos?id=MESSAGE_ID&frames=1. Report a command as complete only after receiving its result.\n` + featureDocs(base, conn), {
     headers: { ...noStore, "Content-Type": "text/plain; charset=utf-8" },
   });
 }
@@ -44,10 +46,11 @@ export async function PATCH(req: Request, { params }: Ctx) {
 }
 
 /** Delete the connection and its history. The plugin file for it stops working. */
-export async function DELETE(_req: Request, { params }: Ctx) {
+export async function DELETE(req: Request, { params }: Ctx) {
   const { token } = await params;
   const conn = await findByToken(token);
   if (!conn) return Response.json({ ok: false, error: "Connection not found." }, { status: 404 });
+  try { ownerRequest(req); } catch(e) { return apiError(e); }
   await db.delete(connections).where(eq(connections.id, conn.id));
   return Response.json({ ok: true }, { headers: noStore });
 }

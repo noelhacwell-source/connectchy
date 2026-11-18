@@ -1,4 +1,7 @@
 import { modules } from "@/lib/modules";
+import {workbenchGuard} from "@/lib/workbench-store";
+import {EXPANDED_CODE_COMMANDS,EXPANDED_ROBLOX_COMMANDS} from "@/lib/expanded-commands";
+import { isVSCode, VSCODE_COMMANDS } from "@/lib/vscode";
 import { protectionError } from "@/lib/work-protection";
 import { publicOrigin } from "@/lib/public-origin";
 import { workspaceEntries } from "@/db/schema";
@@ -6,7 +9,7 @@ import { isNull } from "drizzle-orm";
 import { featureSettings } from "@/lib/features";
 import { changesStudio, coordinationError, agentControlError } from "@/lib/room-coordination";
 import { createHash, randomBytes } from "crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { commands, connections, type Command, type Connection } from "@/db/schema";
 
@@ -52,7 +55,9 @@ export const isOnline = (c: Connection) =>
 
 export function publicConnection(c: Connection) {
   return {
+    mode: isVSCode(c.features) ? "vscode" : "roblox",
     name: c.name,
+    videoUploadLimitMb: c.videoUploadLimitMb,
     modules: modules(c.features.modules),
     paused: !!c.paused,
     stopRevision:c.stopRevision,
@@ -116,12 +121,25 @@ export async function runCommand(conn: Connection, input: RunInput): Promise<{ s
   if (typeof input.type !== "string" || !/^[a-z_]{2,40}$/.test(input.type)) {
     return fail(400, "Missing or invalid 'type'. Read the docs at this link's root for the command list.");
   }
+  if (isVSCode(conn.features) ? !VSCODE_COMMANDS.some(c=>c.type===input.type) : input.type.startsWith("code_")) return fail(400,"This command belongs to a different workspace mode. Read the current agent link for available commands.");
+  if (input.type === "code_trash_files" && !/^vscode-0\.(?:[3-9]|[1-9]\d)\./.test(conn.pluginVersion ?? ""))
+    return fail(409, "Install Connectchy 0.3.0 or newer to trash multiple files.");
+  if(EXPANDED_CODE_COMMANDS.some(c=>c.type===input.type)&&!/^vscode-0\.(?:[2-9]|[1-9]\d)\./.test(conn.pluginVersion??""))return fail(409,"This tool requires VS Code extension 0.2.0 or newer. Install the updated VSIX from Connection setup.");
+  if(EXPANDED_ROBLOX_COMMANDS.some(c=>c.type===input.type)) {const v=(conn.pluginVersion??"").split(".").map(Number);if(!(v[0]>1||(v[0]===1&&v[1]>=4)))return fail(409,"This tool requires Roblox plugin 1.4.0 or newer. Restart Studio after updating the plugin.");}
   const payload = input.payload ?? {};
   if (typeof payload !== "object" || Array.isArray(payload)) {
     return fail(400, "'payload' must be a JSON object.");
   }
   if (Buffer.byteLength(JSON.stringify(payload)) > MAX_PAYLOAD_BYTES) {
     return fail(413, "Payload is too large (900 KB max). Split the work into smaller commands.");
+  }
+  if (input.type === "run_playtest") {
+    const p = payload as {mode?:unknown;duration?:unknown;code?:unknown};
+    if (p.mode !== undefined && p.mode !== "play" && p.mode !== "run") return fail(400,"Playtest mode must be play or run.");
+    if (p.duration !== undefined && (typeof p.duration !== "number" || !Number.isInteger(p.duration) || p.duration < 1 || p.duration > 60)) return fail(400,"Playtest duration must be a whole number from 1 to 60 seconds.");
+    if (p.code !== undefined && (typeof p.code !== "string" || Buffer.byteLength(p.code) > 32000)) return fail(400,"Playtest code must be a string under 32 KB.");
+    const version = (conn.pluginVersion ?? "").split(".").map(Number);
+    if (!(version[0] > 1 || (version[0] === 1 && version[1] >= 3))) return fail(409,"Playtests require Connectchy plugin 1.3.0 or newer. Download the updated plugin from Connection setup and restart Studio.");
   }
   if (input.source !== "dashboard" && changesStudio(input.type, payload)) {
     if(modules(conn.features.modules).gameReferences&&modules(conn.features.modules).referenceGate){const refs=await db.select().from(workspaceEntries).where(and(eq(workspaceEntries.connectionId,conn.id),eq(workspaceEntries.kind,"reference"),isNull(workspaceEntries.archivedAt)));if(refs.some(r=>r.data.enabled!==false&&r.status!=="researched"))return fail(409,"Game reference research is pending. Read /references and save a cited research brief before building.");}
@@ -144,10 +162,11 @@ export async function runCommand(conn: Connection, input: RunInput): Promise<{ s
       .limit(1);
   }
   if (!row) {
+    if(input.source!=="dashboard") {const blocked=await workbenchGuard(conn,input.agent,input.type,payload,db,false);if(blocked)return fail(403,blocked);}
     if (!isOnline(conn)) {
       return fail(
         409,
-        "Roblox Studio is not connected. Ask the user to open Studio with the Connectchy plugin installed, then retry.",
+        isVSCode(conn.features)?"VS Code is not connected. Open the project folder and use Connectchy: Connect Project in VS Code.":"Roblox Studio is not connected. Ask the user to open Studio with the Connectchy plugin installed, then retry.",
       );
     }
     const review=input.source!=="dashboard"&&changesStudio(input.type,payload)&&modules(conn.features.modules).reviewQueue;
@@ -159,11 +178,16 @@ export async function runCommand(conn: Connection, input: RunInput): Promise<{ s
       if(result.ok&&typeof result.result?.source==="string")before=[{path,source:result.result.source}];
       else return fail(409,"Cannot capture the current script for review. Connect Studio and retry; no edit proposal was queued.");
     }
-    [row] = await db
+    const queued=await db.transaction(async tx=>{
+      if(nonce)await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`connectchy:nonce:${conn.id}:${nonce}`},0))`);
+      if(input.source!=="dashboard")await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`connectchy:agent:${conn.id}:${String(input.agent).toLowerCase()}`},0))`);
+      if(nonce){const [existing]=await tx.select().from(commands).where(and(eq(commands.connectionId,conn.id),eq(commands.nonce,nonce))).limit(1);if(existing)return {row:existing,blocked:null};}
+      if(input.source!=="dashboard"){const blocked=await workbenchGuard(conn,input.agent,input.type as string,payload,tx);if(blocked)return {row:null,blocked};}
+      const [created] = await tx
       .insert(commands)
       .values({
         connectionId: conn.id,
-        type: input.type,
+        type: input.type as string,
         payload,
         nonce,
         roomId: typeof input.room==="number"?input.room:conn.activeRoomId,
@@ -173,6 +197,11 @@ export async function runCommand(conn: Connection, input: RunInput): Promise<{ s
         agent: typeof input.agent === "string" ? input.agent.slice(0,40) : null,
       })
       .returning();
+      return {row:created,blocked:null};
+    });
+    if(queued.blocked)return fail(403,queued.blocked);
+    if(!queued.row)return fail(500,"Could not queue the command.");
+    row=queued.row;
   }
 
   if(row.status==="review")return {status:202,body:{...commandView(row),requiresApproval:true,error:"Waiting for owner approval. Poll /commands?id="+row.id+"; do not resubmit."}};
