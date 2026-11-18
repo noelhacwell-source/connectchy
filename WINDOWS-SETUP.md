@@ -1,94 +1,77 @@
-# Install Connectchy on your Windows PC
+# Start Connectchy on Windows
 
-These steps are for a fresh installation on 64-bit Intel or AMD Windows with PowerShell. Run them on the computer where you use Roblox Studio or VS Code. You generate your own database password, tunnel and plugin during setup. The repository link is all you need from the person sharing Connectchy.
+Use these steps on the **64-bit Intel or AMD Windows PC** where you want to run Connectchy. Each box contains one command. Paste it into **PowerShell**, press **Enter**, and wait until the prompt comes back before copying the next command.
 
-## 1. Install the tools
+## First time only
 
-Open **PowerShell** and run these commands. Skip a line if that tool is already installed.
+**1. Open PowerShell.** Click Start, type **PowerShell**, and open it. Install Node.js:
+
+```powershell
+winget install --exact --id OpenJS.NodeJS.LTS
+```
+
+If Windows says it is already installed, continue. Accept the installer prompts.
+
+**2. Install Git** in the same window:
 
 ```powershell
 winget install --exact --id Git.Git
-winget install --exact --id OpenJS.NodeJS.LTS
-winget install --exact --id Docker.DockerDesktop
 ```
 
-Open **Docker Desktop** from Start and finish its setup. If it requests WSL or a reboot, follow its prompts and reopen Docker Desktop. Wait for the engine to start. Open a **new PowerShell** and verify these commands work before continuing. Use Node.js 22.13 or newer.
+**3. Close PowerShell and open it again.** Go to your Windows user folder:
 
 ```powershell
-git --version
-node --version
-npm.cmd --version
-docker info --format '{{.ServerVersion}}'
+cd $env:USERPROFILE
 ```
 
-## 2. Download Connectchy and its tunnel tool
+**4. Download Connectchy:**
 
 ```powershell
-Set-Location $env:USERPROFILE
 git clone https://github.com/noelhacwell-source/connectchy.git
-Set-Location .\connectchy
-New-Item -ItemType Directory -Force .local-runtime | Out-Null
-curl.exe --fail --location "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" --output ".local-runtime\cloudflared.exe"
-.\.local-runtime\cloudflared.exe --version
 ```
 
-The last command should print a version. Connectchy looks in this directory automatically. The executable comes from Cloudflare's official release. [Cloudflare downloads](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/)
-
-## 3. Create your local database once
-
-Stay in the same PowerShell window. Paste this whole block. It creates a PostgreSQL database accessible on your PC at port 55433, keeps the data in a Docker volume, and writes the connection settings to a private local file.
+**5. Enter its folder:**
 
 ```powershell
-if (Test-Path .env) { throw "An .env file already exists. Use your existing database settings or start in a fresh clone." }
-$dbPassword = node -p "require('node:crypto').randomBytes(32).toString('hex')"
-if ($LASTEXITCODE -ne 0 -or $dbPassword -notmatch '^[0-9a-f]{64}$') { throw "Could not generate a database password." }
-docker run --name connectchy-db --restart unless-stopped -p 127.0.0.1:55433:5432 -e POSTGRES_USER=connectchy -e POSTGRES_DB=connectchy -e "POSTGRES_PASSWORD=$dbPassword" -v connectchy-pgdata:/var/lib/postgresql/data -d postgres:16
-if ($LASTEXITCODE -ne 0) { throw "Database creation failed. Read the Docker message before continuing." }
-"DATABASE_URL=postgresql://connectchy:${dbPassword}@127.0.0.1:55433/connectchy" | Set-Content -Encoding ascii .env
-Remove-Variable dbPassword
+cd connectchy
 ```
 
-Run this check until it prints **accepting connections**.
+**6. Run setup:**
 
 ```powershell
-docker exec connectchy-db pg_isready -U connectchy -d connectchy
+.\setup-windows.cmd
 ```
 
-## 4. Build and start
+Wait for **Setup complete**. This downloads the official Cloudflare tunnel tool, creates a private PostgreSQL database on your PC, generates its password, and builds the app. Everything is set up for you. If setup stops, read the last error and repeat step 6 after fixing it.
 
-Run each command in order. Continue when the preceding command succeeds.
+**7. Start Connectchy:**
 
 ```powershell
-npm.cmd ci
-npx.cmd drizzle-kit push
-npm.cmd run build
-npm.cmd start
+.\start-windows.cmd
 ```
 
-Leave this window open. Open **http://127.0.0.1:3000** in your browser. Startup launches the tunnel automatically. Wait for the public address ending in **trycloudflare.com** before copying a link for someone outside your PC.
+**Leave this window open.** Open your browser and enter **http://127.0.0.1:3000** in the address bar.
 
-## 5. Choose what to share
+## What to click in the app
 
-- **Roblox Studio** — Create a Roblox Studio workspace, open its connection settings, and download your own StudioLink.rbxmx. In Studio open **Plugins → Plugins Folder**, place the file there, restart Studio and open your place. Allow the plugin's local HTTP connection if prompted. Check that the dashboard reports Studio online. The default plugin server address is http://127.0.0.1:3000 on your PC.
-- **VS Code** — Create a VS Code workspace, download its VSIX from connection settings, and use **Extensions → … → Install from VSIX** in VS Code. Open the intended project folder and use the extension's connect command with your own workspace link.
-- **Project Upload** — Choose Project Upload on the home page, add your folders and upload. **Copy project link** gives a recipient instructions for downloading that project and pushing an updated version. Anyone holding this link can replace that project's files. Check your selected folders for passwords, .env files and private keys before uploading.
+- **Share a folder with an AI:** Choose **Project Upload**, choose your folders, then click **Upload project**. Click **Copy project link** and send that link to the AI. Anyone who has it can download and replace that project.
+- **Connect Roblox Studio:** Create a **Roblox Studio** workspace. In its connection settings, download your own **StudioLink.rbxmx**. Open **Plugins → Plugins Folder** in Studio, put the file there, restart Studio and open your place. Allow the local HTTP connection if Studio asks. Wait for the dashboard to show Studio online.
+- **Connect VS Code:** Create a **VS Code** workspace and download the VSIX from connection settings. In VS Code open **Extensions → … → Install from VSIX**, choose the downloaded file, open your project folder, and connect using your workspace link.
 
-To share the application itself, send the **GitHub repository link**. Keep your generated StudioLink plugin, .env, .local-runtime directory and live workspace links private unless you intend to grant the corresponding access.
+For an AI on another computer, copy the public link from Connectchy once the tunnel is ready. The temporary address can change after restarting. To give someone their own copy of the app, share the GitHub repository link. Keep your generated database password and paired Studio plugin private.
 
-## Start again another day
+## Next time
 
-Start Docker Desktop, then open PowerShell and run:
+Open PowerShell. Enter this command:
 
 ```powershell
-Set-Location "$env:USERPROFILE\connectchy"
-docker start connectchy-db
-npm.cmd start
+cd "$env:USERPROFILE\connectchy"
 ```
 
-Use **Ctrl+C** in the app window to stop Connectchy. After restarting, copy the current public link again because the temporary tunnel hostname can change. Your database stays in the Docker volume.
+Then start the app:
 
-## If something fails
+```powershell
+.\start-windows.cmd
+```
 
-- **Docker engine unavailable** — Open Docker Desktop and rerun the docker info check in step 1.
-- **Database unavailable** — Run the pg_isready command in step 3. To see startup errors, run `docker logs --tail 40 connectchy-db`.
-- **App opens, but a remote AI cannot reach it** — Check that cloudflared prints its version in step 2 and that the start window reports a public tunnel. Copy the public project or agent link from the dashboard. A localhost link points to the recipient's own machine.
+Open **http://127.0.0.1:3000** again. Press **Ctrl+C** in the app window when you want to stop the app and its tunnel.

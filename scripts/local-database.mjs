@@ -13,8 +13,10 @@ export async function ensureDatabase(connectionString) {
     finally { await client.end().catch(() => {}); }
   }
   if (await ready()) return;
-  const script = path.resolve('.local-runtime/database.mjs');
-  if (!['localhost', '127.0.0.1'].includes(url.hostname) || url.port !== '55432' || !existsSync(script)) {
+  const script = path.resolve('scripts/embedded-database.mjs');
+  const portFile=path.resolve('.local-runtime/embedded-port');
+  const managedPort=existsSync(portFile)?readFileSync(portFile,'utf8').trim():'55432';
+  if (!['localhost', '127.0.0.1'].includes(url.hostname) || url.port !== managedPort || url.pathname !== '/studio_link' || !existsSync(script)) {
     throw new Error('Database unavailable. Start the PostgreSQL server configured in DATABASE_URL, then retry.');
   }
   const lockPath=path.resolve('.local-runtime/database-start.lock');
@@ -44,7 +46,7 @@ export async function ensureDatabase(connectionString) {
     child.on('error', () => {});
     child.unref();
   } finally { closeSync(output); }
-  for (let attempt = 0; attempt < 30; attempt++) {
+  for (let attempt = 0; attempt < 120; attempt++) {
     if (await ready()) { console.log('Local database ready.'); return; }
     if (child.exitCode !== null || child.signalCode !== null) break;
     await new Promise(resolve => setTimeout(resolve, 500));

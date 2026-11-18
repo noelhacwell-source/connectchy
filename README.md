@@ -100,7 +100,7 @@ generation and already-running Luau cannot be forcibly interrupted. Agent names 
 - The link is a password. Anyone holding it can change the open place. Delete the connection to
   revoke it.
 
-## Run locally
+## Run locally with an existing PostgreSQL server
 
 ```
 npm install
