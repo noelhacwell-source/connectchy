@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Download, History } from "lucide-react";
+import { Download, History, PanelsTopLeft, Check } from "lucide-react";
+import releaseNotes from "../../release-notes.json";
 import WorkspaceDialog from "./WorkspaceDialog";
 
 type Release = { title: string; changes: string[] };
@@ -8,10 +9,7 @@ type Status = {
   phase: string;
   installed: string;
   available: string | null;
-  summary?: string;
-  history?: string[];
   message: string;
-  notes: Release[];
 };
 export default function AppUpdates() {
   const [state, setState] = useState<Status | null>(null),
@@ -107,40 +105,19 @@ export default function AppUpdates() {
           close={() => setOpen(false)}
         >
           <section className="release-panel">
-            <h2>Updates and changelog</h2>
-            {state.available && (
-              <div className="release-offer">
-                <strong>{state.summary || "Update available"}</strong>
-                <button type="button" disabled={working} onClick={update}>
-                  {working ? "Update in progress" : "Update and restart"}
-                </button>
-              </div>
-            )}
-            <p role="status">
-              {error ||
-                state.message ||
-                (state.available ? "Ready to install." : "You're up to date.")}
-            </p>
-            {state.notes.map((n, i) => (
-              <article key={i}>
-                <h3>{n.title}</h3>
-                <ul>
-                  {n.changes.map((c) => (
-                    <li key={c}>{c}</li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-            {!!state.history?.length && (
-              <details>
-                <summary>Recent changes</summary>
-                <ul>
-                  {state.history.map((line, i) => (
-                    <li key={i}>{line}</li>
-                  ))}
-                </ul>
-              </details>
-            )}
+            <header className="release-heading">
+              <span className="release-symbol"><PanelsTopLeft size={25}/></span>
+              <h2>{releaseNotes.releases[0].title}</h2>
+            </header>
+            <ul className="release-changes">
+              {releaseNotes.releases[0].changes.map(change => (
+                <li key={change}><Check size={15} aria-hidden="true"/><span>{change}</span></li>
+              ))}
+            </ul>
+            <footer className="release-footer">
+              <p role="status">{error || state.message || (working ? "Updating…" : state.available ? "Ready to install." : "You're up to date.")}</p>
+              {state.available && <button type="button" disabled={working} onClick={update}><Download size={15}/>{working ? "Updating…" : "Update and restart"}</button>}
+            </footer>
           </section>
         </WorkspaceDialog>
       )}

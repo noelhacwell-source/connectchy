@@ -1,5 +1,7 @@
 "use client";
+import AppUpdates from "./AppUpdates";
 
+import ConnectchyLogo from "./ConnectchyLogo";
 import ProjectUploads from "./ProjectUploads";
 import ButtonDesigner from "./ButtonDesigner";
 import Link from "next/link";
@@ -24,7 +26,7 @@ import {
   Box,
   Code2,
   FolderOpen,
-  Layers3,
+  FolderUp,
   Link2,
   Plus,
   Search,
@@ -127,17 +129,26 @@ export default function Home() {
           : 0) || a.name.localeCompare(b.name)
       );
     });
+  const modes = [
+    {id:"roblox",name:"Roblox Studio",detail:"Connect an open place",icon:Box},
+    {id:"vscode",name:"VS Code",detail:"Work in a local codebase",icon:Code2},
+    {id:"upload",name:"Project Upload",detail:"Share folders and versions",icon:FolderUp},
+  ];
+  const hasHeading=sections.some(item=>item.id==="home-heading");
+  const hasCreate=sections.some(item=>item.id==="home-create");
+  function modePicker(jump:boolean){
+    return <div className="design-modes" aria-label="Workspace type">{modes.map(({id,name,detail,icon:Icon})=><button key={id} type="button" aria-pressed={mode===id} onClick={()=>{
+      setMode(id);
+      if(jump)requestAnimationFrame(()=>{const card=document.getElementById("create-workspace");card?.scrollIntoView({behavior:"instant",block:"center"});card?.querySelector<HTMLInputElement>('input:not([hidden])')?.focus({preventScroll:true})});
+    }}><Icon size={22}/><span><strong>{name}</strong><small>{detail}</small></span><ArrowRight size={15}/></button>)}</div>
+  }
   const blocks: Record<string, ReactNode> = {
     "home-heading": (
-      <header className="hub-intro">
-        <div>
-          <h1>{layout.labels["home-heading"] || "Workspaces"}</h1>
-          <p>Manage your connected projects, teams, and conversations.</p>
-        </div>
-        <span className="hub-total">
-          <FolderOpen size={16} />
-          {saved.filter((p) => statuses[p.token] !== "gone").length} saved
-        </span>
+      <header className="design-hero">
+        <div aria-hidden="true" className="bg-grid design-grid"/>
+        <h1>{layout.labels["home-heading"] || <>Your agent <span className="text-shimmer">workspace</span></>}</h1>
+        <p>Connect your editor, chat with your agents, or share a project.</p>
+        {hasCreate && modePicker(true)}
       </header>
     ),
     "home-saved": (
@@ -145,7 +156,7 @@ export default function Home() {
         className="hub-projects"
         aria-label={layout.labels["home-saved"] || "Saved workspaces"}
       >
-        {layout.labels["home-saved"] && <h2>{layout.labels["home-saved"]}</h2>}
+        <h2 className="saved-heading">{layout.labels["home-saved"] || "Saved workspaces"} <span>{saved.filter(p=>statuses[p.token]!=="gone").length}</span></h2>
         <label className="search-field">
           <Search size={16} />
           <input
@@ -221,29 +232,10 @@ export default function Home() {
       <section className="home-card" id="create-workspace">
         <h2>
           <Plus size={18} />
-          {layout.labels["home-create"] || "Create workspace"}
+          {layout.labels["home-create"] || modes.find(item=>item.id===mode)?.name}
         </h2>
         <div>
-          <label className="field-label">Editor</label>
-          <div className="hub-mode">
-            <button
-              type="button"
-              aria-pressed={mode === "roblox"}
-              onClick={() => setMode("roblox")}
-            >
-              <Box size={17} />
-              Roblox Studio
-            </button>
-            <button
-              type="button"
-              aria-pressed={mode === "vscode"}
-              onClick={() => setMode("vscode")}
-            >
-              <Code2 size={17} />
-              VS Code
-            </button>
-            <button type="button" aria-pressed={mode === "upload"} onClick={()=>setMode("upload")}><FolderOpen size={17}/>Project Upload</button>
-          </div>
+          {!hasHeading && modePicker(false)}
           {mode==="upload"?<ProjectUploads/>:<form onSubmit={create}><label className="field-label">
             Project name
             <input
@@ -301,12 +293,11 @@ export default function Home() {
       <ButtonDesigner layout={layout} update={customization.update}/>
       <header className="home-header">
         <Link href="/" className="flex items-center gap-3">
-          <span className="brand-glyph">
-            <Layers3 size={19} />
-          </span>
+          <ConnectchyLogo className="design-logo"/>
           <strong>Connectchy</strong>
         </Link>
         <div className="record-actions">
+          <AppUpdates/>
           {sections.some((item) => item.id === "home-create") && (
             <a href="#create-workspace" className="hub-header-action">
               <Plus size={15} />

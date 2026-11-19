@@ -1,4 +1,5 @@
 "use client";
+import {RoomIntro,DaySeparator,KindBadge} from "./RoomPresentation";
 import DeleteRecord from "./DeleteRecord";
 import { copyText } from "@/lib/clipboard";
 import {
@@ -43,7 +44,7 @@ import {
   Pin,
   Reply,
   Search,
-  Sparkles,
+  Sparkles, Slash, Type,
   Trash2,
   Users,
   X,
@@ -81,7 +82,7 @@ type ChatData = {
   room: { name: string; active: boolean };
 };
 function subscribeWide(callback: () => void) {
-  const query = window.matchMedia("(min-width: 1280px)");
+  const query = window.matchMedia("(min-width: 1181px)");
   query.addEventListener("change", callback);
   return () => query.removeEventListener("change", callback);
 }
@@ -124,7 +125,7 @@ export default function AgentChat({
   configureAgents,
   openVideos,
   limitMb,
-  panelDefault,
+  panelDefault, queueControl,
 }: {
   token: string;
   roomId: number;
@@ -139,6 +140,7 @@ export default function AgentChat({
   configureAgents: () => void;
   openVideos: () => void;
   limitMb: number | null;
+  queueControl:(stop:boolean)=>Promise<void>;
   panelDefault: "automatic" | "open" | "closed";
 }) {
   const base = `/api/agent/${token}/room`,
@@ -148,6 +150,9 @@ export default function AgentChat({
     [team, setTeam] = useState<TeamPlan>(DEFAULT_TEAM),
     [draftText, setDraftText] = useState<string | null>(null),
     [search, setSearch] = useState(""),
+    [searchOpen,setSearchOpen]=useState(false),
+    [formatOpen,setFormatOpen]=useState(false),
+    [commandsOpen,setCommandsOpen]=useState(false),
     [query, setQuery] = useState(""),
     [pins, setPins] = useState(false),
     [hasOlder, setHasOlder] = useState(false),
@@ -176,7 +181,7 @@ export default function AgentChat({
   const draftTimer = useRef<number | null>(null);
   const wide = useSyncExternalStore(
     subscribeWide,
-    () => window.matchMedia("(min-width: 1280px)").matches,
+    () => window.matchMedia("(min-width: 1181px)").matches,
     () => false,
   );
   const agentWindowOpen = agentWin ?? (panelDefault === "automatic" ? wide : panelDefault === "open");
@@ -507,29 +512,21 @@ export default function AgentChat({
       setError(e instanceof Error ? e.message : "Export failed.");
     }
   };
+  const readyCount = team.participants.filter(p=>p.control!=="removed" && p.ready).length;
   const pingIds = new Set(pings.map((p) => p.id));
   return (
     <div className="chat-layout">
       <div className="chat-main">
         <div className="conversation-toolbar">
-          <div>
-            <span className="flex items-center gap-2 text-sm font-medium">
-              <Hash size={16} className="text-dim" />
-              {roomName}
-              <span className={`tiny-badge ${active ? "live" : ""}`}>
-                {active ? "Active room" : "History"}
-              </span>
-            </span>
-            <span className="mt-1 block text-xs text-dim">
-              {team.participants.filter(p=>p.control!=="removed").length} agents ·{" "}
-              {team.phase === "active"
-                ? "Roles agreed"
-                : team.phase === "done"
-                  ? "Work completed"
-                  : "Planning together"}
-            </span>
+          <div className="room-identity"><span className="room-hash"><Hash size={17}/></span><div>
+            <div className="room-title"><h1>{roomName}</h1><span className={active?"room-live":"room-history"}>{active?"Live":"History"}</span></div>
+            <p>{team.participants.filter(p=>p.control!=="removed").length} agents · {team.phase==="active"?"Roles agreed":team.phase==="done"?"Work completed":"Planning"} · {messages.length} loaded</p>
+          </div></div>
+          <div className="room-speakers" aria-label="Filter conversation by speaker"><button aria-pressed={!selectedAgent} onClick={()=>focusAgent("")}>Everyone</button>
+            {team.participants.filter(p=>p.control!=="removed").map(p=><button key={p.agent} aria-pressed={selectedAgent===p.agent} onClick={()=>focusAgent(selectedAgent===p.agent?"":p.agent)}>{p.agent}</button>)}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="room-header-tools">
+            {enabled.messageSearch && <button className="icon-button" aria-label="Search messages" aria-expanded={searchOpen} onClick={()=>{setSearchOpen(!searchOpen);if(searchOpen)setSearch("")}}><Search size={16}/></button>}
             <details className="relative"><summary className="add-agent-button">+ Agent</summary><div className="popover"><button onClick={configureAgents}>Import a model or link an agent</button><button
               className="add-agent-button"
               disabled={busy || team.expected >= 32}
@@ -610,11 +607,11 @@ export default function AgentChat({
             </button>
           </div>
         </div>
-        {enabled.messageSearch && (
+        {enabled.messageSearch && searchOpen && (
           <div className="chat-search">
             <Search size={14} />
             <input
-              aria-label="Search conversation"
+              autoFocus aria-label="Search conversation"
               placeholder="Search this conversation"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -722,51 +719,7 @@ export default function AgentChat({
                 Load older messages
               </button>
             )}
-            {!messages.length && (
-              <div className="chat-empty">
-                <div className="empty-symbol">
-                  <Sparkles size={30} />
-                </div>
-                <p className="eyebrow">{roomName}</p>
-                <h2>
-                  {query
-                    ? "No messages found."
-                    : pins
-                      ? "Nothing pinned yet."
-                      : "Start the conversation"}
-                </h2>
-                <p>
-                  {query
-                    ? "Try a different search or agent filter."
-                    : pins
-                      ? "Pin a useful decision or instruction to keep it close."
-                      : "Post a brief for your team or ask an imported agent to reply."}
-                </p>
-                {!query && !pins && (
-                  <div className="starter-prompts">
-                    {[
-                      "Plan our next build",
-                      "Agree roles before editing",
-                      "Review progress and blockers",
-                    ].map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => {
-                          draft(t);
-                          input.current?.focus();
-                        }}
-                      >
-                        <MessageSquare size={14} />
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <span className="mt-5 block text-xs text-dim">
-                  Link-connected agents receive messages when they check the room.
-                </span>
-              </div>
-            )}
+            {!messages.length && (query || pins || selectedAgent ? <p className="room-no-results">No matching messages.</p> : <RoomIntro name={roomName}/> )}
             {messages.map((message, index) => {
               const previous = messages[index - 1];
               const day = new Date(message.createdAt).toDateString();
@@ -784,11 +737,9 @@ export default function AgentChat({
               return (
                 <Fragment key={message.id}>
                   {previousDay !== day && (
-                    <div className="day-separator">
-                      <span>{daySeparatorLabel(message.createdAt)}</span>
-                    </div>
+                    <DaySeparator label={daySeparatorLabel(message.createdAt)}/>
                   )}
-                  <article
+                  <article data-kind={message.kind}
                     className={`chat-message ${message.agent === "Owner" ? "from-owner" : ""} ${pingIds.has(message.id) && enabled.pingInbox ? "mentioned" : ""} ${enabled.compactMessages ? "compact" : ""} ${grouped ? "grouped" : ""}`}
                   >
                 <AgentAvatar name={message.agent} />
@@ -840,7 +791,7 @@ export default function AgentChat({
                         : ""}
                     </button>
                   )}
-                  <div id={`message-${message.id}`} className="message-prose">
+                  <div id={`message-${message.id}`} className="message-prose prose-chat"><KindBadge kind={message.kind}/>
                     {editing === message.id ? (
                       <div>
                         <textarea
@@ -1034,9 +985,9 @@ export default function AgentChat({
             </div>
           )}
           <div
-            className={`composer-box ${expandedComposer ? "composer-expanded" : ""}`}
+            className={`composer-box composer-glow ${expandedComposer ? "composer-expanded" : ""}`}
           >
-            {(enabled.chatFormatting ||
+            {formatOpen && (enabled.chatFormatting ||
               enabled.chatPreview ||
               enabled.chatExpandComposer ||
               enabled.chatClearDraft) && (
@@ -1089,7 +1040,7 @@ export default function AgentChat({
                 </ReactMarkdown>
               </div>
             )}
-            {(enabled.chatUrgency || enabled.chatTags) && (
+            {formatOpen && (enabled.chatUrgency || enabled.chatTags) && (
               <details className="composer-options">
                 <summary>Message options</summary>
                 {enabled.chatUrgency && (
@@ -1140,20 +1091,20 @@ export default function AgentChat({
             )}
             {enabled.chatSlashCommands &&
               active &&
-              text.startsWith("/") &&
-              !/\s/.test(text.trim()) &&
-              SLASH_COMMANDS.filter((s) => s.cmd.startsWith(text.trim()))
+              (commandsOpen || (text.startsWith("/") && !/\s/.test(text.trim()))) &&
+              SLASH_COMMANDS.filter((s) => commandsOpen || s.cmd.startsWith(text.trim()))
                 .length > 0 && (
                 <div className="slash-menu" role="listbox">
                   <p className="slash-title">COMMANDS</p>
-                  {SLASH_COMMANDS.filter((s) => s.cmd.startsWith(text.trim())).map(
+                  {SLASH_COMMANDS.filter((s) => commandsOpen || s.cmd.startsWith(text.trim())).map(
                     (s) => (
                       <button
                         key={s.cmd}
                         role="option"
                         aria-selected="false"
                         onClick={() => {
-                          draft(`${s.cmd} `);
+                          setCommandsOpen(false);
+                          draft(`${s.cmd} ${commandsOpen?text:""}`);
                           input.current?.focus();
                         }}
                       >
@@ -1164,12 +1115,12 @@ export default function AgentChat({
                   )}
                 </div>
               )}
-            <textarea
+            <div className="room-input-row">{active && enabled.chatAttachments && <span className="room-paperclip"><VideoAttachment url={`/api/agent/${token}/videos?room=${roomId}`} caption="" limitMb={limitMb} done={()=>void load()} error={setError}/></span>}<textarea
               ref={input}
               aria-label="Message the agents"
               placeholder={
                 active
-                  ? "Message your agents. Use @Owner, @all, or an agent name…"
+                  ? `Message #${roomName} — type / for commands, @ to mention`
                   : "This room is read-only until you make it active."
               }
               value={text}
@@ -1189,18 +1140,39 @@ export default function AgentChat({
                   void send();
                 }
               }}
-              rows={expandedComposer ? 9 : 2}
-            />
-            {active&&<div className="studio-compose-tools"><AskAgent token={token} roomId={roomId} configure={configureAgents} done={()=>void load()}/>{enabled.chatAttachments&&<><VideoAttachment url={`/api/agent/${token}/videos?room=${roomId}`} caption="" limitMb={limitMb} done={()=>void load()} error={setError}/><button type="button" className="studio-inline" onClick={openVideos}><Film size={14}/>Media library</button></>}</div>}
-            <div className="composer-footer">
-              <div className="flex items-center gap-2">
-                {enabled.pingInbox && (
+              rows={expandedComposer ? 9 : 1}
+            />              <button
+                className="send-button"
+                aria-label="Send message"
+                disabled={busy || !active || !text.trim()}
+                onClick={() => void send()}
+              >
+                {text.length > 0 && (
+                  <svg className="send-ring" viewBox="0 0 40 40" aria-hidden="true">
+                    <circle
+                      className="send-ring-track"
+                      cx="20"
+                      cy="20"
+                      r="17"
+                    />
+                    <circle
+                      className={`send-ring-fill ${text.length >= 6000 ? "full" : ""}`}
+                      cx="20"
+                      cy="20"
+                      r="17"
+                      strokeDasharray={`${Math.min(1, text.length / 6000) * 106.8} 106.8`}
+                    />
+                  </svg>
+                )}
+                <ArrowUp size={18} />
+              </button></div>
+            {active&&<div className="studio-compose-tools">{enabled.chatSlashCommands && <button type="button" className="studio-inline" aria-expanded={commandsOpen} onClick={()=>setCommandsOpen(!commandsOpen)}><Slash size={13}/>Commands</button>}{(enabled.chatFormatting||enabled.chatPreview||enabled.chatExpandComposer||enabled.chatClearDraft)&&<button className="studio-inline" type="button" aria-expanded={formatOpen} onClick={()=>setFormatOpen(!formatOpen)}><Type size={13}/>Format</button>}                {enabled.pingInbox && (
                   <details className="relative">
                     <summary
-                      className="icon-button"
+                      className="studio-inline"
                       aria-label="Mention an agent"
                     >
-                      <AtSign size={17} />
+                      <AtSign size={13}/> Mention
                     </summary>
                     <div className="popover above">
                       <button onClick={() => ping("all")}>Everyone</button>
@@ -1212,7 +1184,10 @@ export default function AgentChat({
                     </div>
                   </details>
                 )}
-                {enabled.chatSendMode && (
+<AskAgent token={token} roomId={roomId} configure={configureAgents} done={()=>void load()}/>{enabled.chatAttachments&&<><button type="button" className="studio-inline" onClick={openVideos}><Film size={14}/>Media library</button></>}</div>}
+            <div className="composer-footer">
+              <div className="flex items-center gap-2">
+                {formatOpen && enabled.chatSendMode && (
                   <select
                     aria-label="Send shortcut"
                     className="send-mode-select"
@@ -1223,7 +1198,7 @@ export default function AgentChat({
                     <option value="ctrl">Ctrl/⌘ + Enter</option>
                   </select>
                 )}
-                {enabled.chatSounds && (
+                {formatOpen && enabled.chatSounds && (
                   <button
                     className="sound-toggle"
                     onClick={() => {
@@ -1248,38 +1223,10 @@ export default function AgentChat({
                     : "Shift + Enter for a new line"}
                 </span>
               </div>
-              <button
-                className="send-button"
-                aria-label="Send message"
-                disabled={busy || !active || !text.trim()}
-                onClick={() => void send()}
-              >
-                {text.length > 0 && (
-                  <svg className="send-ring" viewBox="0 0 40 40" aria-hidden="true">
-                    <circle
-                      className="send-ring-track"
-                      cx="20"
-                      cy="20"
-                      r="17"
-                    />
-                    <circle
-                      className={`send-ring-fill ${text.length >= 6000 ? "full" : ""}`}
-                      cx="20"
-                      cy="20"
-                      r="17"
-                      strokeDasharray={`${Math.min(1, text.length / 6000) * 106.8} 106.8`}
-                    />
-                  </svg>
-                )}
-                <ArrowUp size={18} />
-              </button>
+
             </div>
           </div>
-          <p className="composer-hint">
-            Your AIs check this room through Connectchy. Keep their clients
-            running · <kbd>⌘K</kbd> opens the command palette · type{" "}
-            <kbd>/</kbd> for commands
-          </p>
+
         </div>
       </div>
       {agentWindowOpen && (
@@ -1287,6 +1234,9 @@ export default function AgentChat({
           mode={studio.mode}
           token={token}
           roomName={roomName}
+          roomId={roomId}
+          queueControl={queueControl}
+          configureAgents={configureAgents}
           online={studio.online}
           placeName={studio.placeName}
           paused={studio.paused}
@@ -1320,7 +1270,7 @@ export default function AgentChat({
                 : "Plan first. Work unlocks when the expected team is ready."}
           </p>
           {enabled.rolePlanning && (
-            <div className="team-planning">
+            <div className="team-planning"><div className="team-progress"><span>Ready for work</span><strong>{readyCount} / {team.expected}</strong><progress aria-label="Agents ready" value={readyCount} max={Math.max(team.expected,readyCount,1)} /></div>
               <label className="text-xs text-muted">
                 Expected agents
                 <input

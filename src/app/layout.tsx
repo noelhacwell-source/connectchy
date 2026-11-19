@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import AppUpdates from "@/components/AppUpdates";
 import "./globals.css";
 import "./studio.css";
+import "./workspace-design.css";
 
 export const metadata: Metadata = {
   title: "Connectchy · Agent workspace",
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen antialiased">{children}<AppUpdates/></body>
+      <body className="min-h-screen antialiased">{children}</body>
     </html>
   );
 }

@@ -1727,7 +1727,7 @@
 .upload-folder {display:flex;justify-content:space-between;gap:1rem}
 .project-upload-panel .record-actions {flex-wrap:wrap}
 .hub-mode {grid-template-columns:repeat(auto-fit,minmax(100px,1fr))}
-.release-launch {position:fixed;right:12px;bottom:10px;z-index:30;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--color-line);border-radius:20px;background:var(--color-panel);color:var(--color-muted);font-size:12px}
+.release-launch {position:relative;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--color-line);border-radius:20px;background:var(--color-panel);color:var(--color-muted);font-size:12px}
 .release-launch.available,.release-offer button {background:#c3ecd8;color:#16362b}
 .release-panel {padding:24px;display:grid;gap:14px}
 .release-panel h2 {font-size:1.35rem;font-weight:650;padding-right:2rem}

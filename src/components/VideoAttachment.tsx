@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { Film } from "lucide-react";
+import { Paperclip } from "lucide-react";
 import { videoSizeLimitBytes } from "@/lib/video-limits";
 import { requestJson } from "@/lib/workspace-client";
 
@@ -123,8 +123,8 @@ export function VideoAttachment({
         disabled={!!status}
         onClick={() => input.current?.click()}
       >
-        <Film size={14} />
-        {status || label}
+        <Paperclip size={15} />
+        <span className="attach-label">{status || label}</span>
       </button>
       <input
         hidden

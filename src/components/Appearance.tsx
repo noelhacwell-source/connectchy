@@ -8,6 +8,7 @@ import {
 import { Check, ImagePlus, RotateCcw } from "lucide-react";
 import { Button, Notice } from "./ui";
 const presets = {
+  Signal: "linear-gradient(135deg,#07080b,#0b0d12)",
   Harbor: "radial-gradient(ellipse at 85% -12%,#294a59,transparent 55%),linear-gradient(155deg,#101e2c,#111c27 62%,#121d26)",
   Dusk: "radial-gradient(ellipse at 90% 2%, #46365d, transparent 60%), linear-gradient(145deg, #18131e, #201928 65%, #17121d)",
   Fjord:
@@ -51,12 +52,12 @@ type Appearance = {
   colors: SurfaceColors;
 };
 const defaults: Appearance = {
-  preset: "Harbor",
+  preset: "Signal",
   image: "",
   dim: 35,
   position: "center",
   fit: "cover",
-  accent: "#9de5dc",
+  accent: "#5ee8a0",
   pattern: "none",
   fontSize: 14,
   font: "System",

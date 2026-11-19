@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import {
-  Activity,
+  Activity, Pin, ShieldCheck, UserPlus,
   AtSign,
   Crosshair,
   Pause,
@@ -37,7 +37,7 @@ type CommandRow = {
 export default function AgentWindow({
   mode,
   token,
-  roomName,
+  roomName, roomId, configureAgents, queueControl,
   online,
   placeName,
   paused,
@@ -52,7 +52,7 @@ export default function AgentWindow({
 }: {
   mode?: string;
   token: string;
-  roomName: string;
+  roomName: string; roomId:number; configureAgents:()=>void; queueControl:(stop:boolean)=>Promise<void>;
   online: boolean;
   placeName: string | null;
   paused: boolean;
@@ -68,6 +68,20 @@ export default function AgentWindow({
   ) => void;
   onClose: () => void;
 }) {
+  const [panel,setPanel]=useState<"team"|"activity"|"pins">("team");
+  const [pins,setPins]=useState<{id:number;agent:string;text:string}[]>([]);
+  const [pinStatus,setPinStatus]=useState("");
+  useEffect(()=>{
+    if(panel!=="pins" || !enabled.messagePins)return;
+    let live=true;
+    async function load(){
+      try{const data=await requestJson<{messages:typeof pins}>(`/api/agent/${token}/room?room=${roomId}&agent=Owner&pinned=1`);
+        if(live){setPins(data.messages);setPinStatus("")}
+      }catch{if(live)setPinStatus("Could not load pinned messages.")}
+    }
+    setPinStatus("Loading pins…");void load();const timer=setInterval(load,5000);
+    return ()=>{live=false;clearInterval(timer)}
+  },[panel,roomId,token,enabled.messagePins]);
   const [commands, setCommands] = useState<CommandRow[] | null>(null);
 
   useEffect(() => {
@@ -113,15 +127,11 @@ export default function AgentWindow({
   return (
     <aside className="agent-window" aria-label="Agent window">
       <header className="aw-titlebar">
-        <span className="aw-dots" aria-hidden>
-          <i />
-          <i />
-          <i />
-        </span>
-        <span className="aw-title">
-          Agent window
-          <span className="aw-room"># {roomName}</span>
-        </span>
+        <nav className="room-panel-tabs" aria-label="Room panel">
+          <button aria-pressed={panel==="team"} onClick={()=>setPanel("team")}><ShieldCheck size={14}/>Team</button>
+          {enabled.activity&&<button aria-pressed={panel==="activity"} onClick={()=>setPanel("activity")}><Activity size={14}/>Activity</button>}
+          {enabled.messagePins&&<button aria-pressed={panel==="pins"} onClick={()=>setPanel("pins")}><Pin size={14}/>Pins</button>}
+        </nav>
         <button
           className="icon-button aw-close"
           aria-label="Close agent window"
@@ -132,18 +142,15 @@ export default function AgentWindow({
       </header>
 
       <div className="aw-body">
-        <section className="aw-studio-card">
+        {panel==="team" && <><section className="aw-studio-card glass">
           <div className="aw-studio-head">
             <span className={`aw-live-pill ${online && !paused ? "live" : ""}`}>
               <span className="aw-live-dot" />
               {paused ? "Paused" : `${mode==="vscode"?"VS Code":"Studio"} ${online?"online":"offline"}`}
             </span>
-            <span className="aw-studio-place">{placeName ?? "No place open"}</span>
+            <span className="aw-studio-place">{placeName ?? (mode==="vscode"?"No folder connected":"No place connected")}</span>
           </div>
-          <div className="aw-meter" aria-hidden>
-            <span style={{ width: online ? "86%" : "6%" }} />
-          </div>
-          <div className="aw-studio-stats">
+          <div className="room-readiness"><strong>{team.phase==="active"?"Roles agreed":team.phase==="done"?"Work completed":"Role planning"}</strong><small>{participants.filter(p=>p.ready).length} of {team.expected} expected agents ready</small><progress aria-label="Role readiness" value={participants.filter(p=>p.ready).length} max={Math.max(1,team.expected,participants.length)}/></div><div className="aw-studio-stats">
             <span>
               <strong>{participants.length}</strong> agents
             </span>
@@ -261,7 +268,10 @@ export default function AgentWindow({
           })}
         </section>
 
-        {enabled.activity && (
+        <button className="room-invite" onClick={configureAgents}><UserPlus size={14}/>Add an agent</button></>}
+
+        {panel==="pins" && enabled.messagePins && <section><p className="aw-section-label">Pinned messages · {roomName}</p>{pinStatus?<p className="aw-empty">{pinStatus}</p>:pins.length?pins.map(pin=><article key={pin.id} className="room-pin"><strong>{pin.agent}</strong><p>{pin.text}</p></article>):<p className="aw-empty">No pinned messages in this room.</p>}</section>}
+        {panel==="activity" && enabled.activity && (
           <section>
             <p className="aw-section-label">LIVE ACTIVITY</p>
             <div className="aw-feed">
@@ -289,13 +299,10 @@ export default function AgentWindow({
         )}
       </div>
 
-      <footer className="aw-footer">
-        <span>
-          <kbd>⌘</kbd>
-          <kbd>K</kbd> command palette
-        </span>
-        <span className="aw-footer-hint">live room activity</span>
-      </footer>
+      <footer className="reference-controls"><p>Project controls</p><div>
+        {(enabled.pauseControl || paused) && <button disabled={busy} onClick={()=>void queueControl(false)}><Pause size={13}/>{paused?"Resume queue":"Pause queue"}</button>}
+        <button className="danger" disabled={busy} onClick={()=>void queueControl(true)}><Power size={13}/>Stop all</button>
+      </div></footer>
     </aside>
   );
 }

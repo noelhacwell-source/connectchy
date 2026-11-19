@@ -1,4 +1,5 @@
 "use client";
+import AppUpdates from "./AppUpdates";
 import ButtonDesigner from "./ButtonDesigner";
 import { Fragment } from "react";
 import RecordManager from "./RecordManager";
@@ -11,6 +12,7 @@ import VideoLibrary from "./VideoLibrary";
 import DeleteWorkspaceDialog from "./DeleteWorkspaceDialog";
 import { COLLECTIONS_BY_TAB, RECORD_COLLECTIONS } from "@/lib/record-collections";
 import Collaboration from "./Collaboration";
+import ConnectchyLogo from "./ConnectchyLogo";
 import AgentDirectory from "./AgentDirectory";
 import {AppearancePanel,useAppearance} from "./Appearance";
 import GameReferences from "./GameReferences";
@@ -38,7 +40,7 @@ import {
   Code2,
   FolderTree,
   Hash,
-  LayoutDashboard, Layers3,
+  LayoutDashboard, Box,
   Lightbulb,
   Menu,
   MessageSquare,
@@ -64,7 +66,7 @@ import {
   FileText, Film, ListChecks, SlidersHorizontal,
   PanelLeft,
 } from "lucide-react";
-import { rememberConnection, type Status } from "@/lib/client";
+import { parseSaved,readSavedRaw,subscribeSaved,rememberConnection, type Status } from "@/lib/client";
 import { modules, type ModuleId } from "@/lib/modules";
 import { DEFAULT_TEAM, type TeamPlan } from "@/lib/team-types";
 import { requestJson, postJson, type EntryKind } from "@/lib/workspace-client";
@@ -182,6 +184,7 @@ export default function Workspace({ token }: { token: string }) {
   const showBlock = (id: string) => !layout.hidden.includes(id);
   const label = (id: string, fallback: string) => layout.labels[id]?.trim() || fallback;
   const router = useRouter();
+  const savedProjects=parseSaved(useSyncExternalStore(subscribeSaved,readSavedRaw,()=>"[]"));
   const desktop = useSyncExternalStore(
       subscribeDesktop,
       () => window.matchMedia("(min-width: 801px)").matches,
@@ -299,12 +302,12 @@ export default function Workspace({ token }: { token: string }) {
       setBusy(false);
     }
   };
-  const pause = async () => {
+  const queueControl = async (stop:boolean) => {
     setBusy(true);
     try {
       await postJson(
         base + "/control",
-        status?.paused ? { paused: false } : { action: "stop" },
+        stop ? { action:"stop" } : { paused:!status?.paused },
       );
       await refresh();
     } catch (e) {
@@ -313,6 +316,7 @@ export default function Workspace({ token }: { token: string }) {
       setBusy(false);
     }
   };
+  const pause = () => queueControl(!status?.paused);
   const selectRoom = (room: Room) => {
     setSelectedId(room.id);
     setView("chat");
@@ -450,9 +454,7 @@ export default function Workspace({ token }: { token: string }) {
             className="brand-mark"
             aria-label="Connectchy projects"
           >
-            <span className="brand-glyph">
-              <Layers3 size={19}/>
-            </span>
+            <ConnectchyLogo className="design-logo"/>
           </Link>
           <span className="topbar-divider" />
           <div className="agent-switcher">
@@ -464,11 +466,7 @@ export default function Workspace({ token }: { token: string }) {
               {selectedAgent ? (
                 <AgentAvatar name={selectedAgent} size="sm" />
               ) : (
-                <span className="agent-stack">
-                  <span />
-                  <span />
-                  <span />
-                </span>
+                <Users size={16} aria-hidden="true"/>
               )}
               <span>{selectedAgent || "All agents"}</span>
               <ChevronDown size={14} />
@@ -532,7 +530,7 @@ export default function Workspace({ token }: { token: string }) {
             {view === "chat" ? (selected ? label("room:" + selected.id, selected.name) : "Agent chat") : label(view, navItems.find(item => item.id === view)?.name ?? "Agent workspace")}
           </span>
         </div>),
-    "workspace-actions": (<div className="flex items-center gap-2">
+    "workspace-actions": (<div className="flex items-center gap-2">{status && view==="chat" && kinds.length>0 && <button className="icon-button" aria-label="Manage records" title="Manage records" onClick={()=>setManageRecords(true)}><ListChecks size={16}/></button>}
           <button
             aria-label="Command palette"
             title="Command palette (⌘K)"
@@ -573,10 +571,12 @@ export default function Workspace({ token }: { token: string }) {
           </button>
         </div>),
   };
+  const [moreTools,setMoreTools]=useState(false);
+  const roomShell=sidebarOpen && desktop && layout.toolbarSide==="top";
   const sidebarBlocks: Record<string, ReactNode> = {
-    project: (<div className="sidebar-project">
+    project: (<details className="room-project-picker"><summary className="sidebar-project">
                 <span className="project-icon">
-                  <Sparkles size={17} />
+                  {editorMode?<Code2 size={18}/>:<Box size={18}/>}
                 </span>
                 <div className="min-w-0">
                   <strong>{label("project", status?.name ?? "Connectchy")}</strong>
@@ -586,14 +586,8 @@ export default function Workspace({ token }: { token: string }) {
                       : editorMode ? "VS Code offline" : "Studio offline"}
                   </small>
                 </div>
-                <button
-                  className="icon-button ml-auto"
-                  aria-label="Workspace settings"
-                  onClick={() => setSettings("connection")}
-                >
-                  <MoreHorizontal size={16} />
-                </button>
-              </div>),
+                <ChevronDown size={14}/>
+              </summary><div className="room-project-options">{savedProjects.map(p=><Link href={"/c/"+p.token} key={p.token} aria-current={p.token===token?"page":undefined}>{p.name}{p.token===token && <Check size={13}/>}</Link>)}<Link href="/"><Plus size={14}/>Open or create workspace</Link><button onClick={()=>setSettings("connection")}><Settings2 size={14}/>Workspace settings</button></div></details>),
     rooms: (<div className="sidebar-section">
                 <div className="sidebar-section-heading">
                   <span>{label("rooms", "Rooms")}</span>
@@ -713,12 +707,13 @@ export default function Workspace({ token }: { token: string }) {
   return (
     <div
       {...prefs.attributes} style={{...prefs.style, ...customization.style}}
-      data-sidebar-side={layout.sidebarSide} data-toolbar-side={layout.toolbarSide}
+      data-room-shell={roomShell} data-sidebar-side={layout.sidebarSide} data-toolbar-side={layout.toolbarSide}
       data-agent-panel-side={layout.agentPanelSide} data-composer-side={layout.composerSide} data-density={layout.density} data-motion={layout.motion}
       className={`agent-shell ${enabled.workspaceAnimations ? "animated-workspace" : "no-workspace-motion"} ${enabled.chatColoredAvatars ? "" : "monochrome-avatars"} ${enabled.chatLargeText ? "large-chat-text" : ""}`}
     >
       <ButtonDesigner layout={layout} update={customization.update}/>
-      <header className="workspace-topbar">
+      {(!roomShell || moreTools) && <header className="workspace-topbar">
+        {!roomShell && <AppUpdates/>}
         {orderedItems(WORKSPACE_TOOLBAR, layout.toolbar).filter(item => showBlock(item.id)).map(item => (
           <div className={"custom-toolbar-block " + item.id} key={item.id} aria-label={label(item.id, item.label)}>
             {toolbarBlocks[item.id]}
@@ -727,7 +722,7 @@ export default function Workspace({ token }: { token: string }) {
         <button aria-label="Customize workspace" className="settings-button customize-launch" onClick={() => setSettings("layout")}>
           <SlidersHorizontal size={17}/><span>Customize</span>
         </button>
-      </header>
+      </header>}
       <div className="workspace-body">
         {sidebarOpen && (
           <>
@@ -737,7 +732,15 @@ export default function Workspace({ token }: { token: string }) {
               onClick={() => setSidebar(false)}
             />
             <aside className="workspace-sidebar">
+              {roomShell && <><div className="reference-brand"><Link href="/"><ConnectchyLogo className="design-logo"/>Connectchy</Link><button className="icon-button" aria-label="Collapse sidebar" onClick={()=>setSidebar(false)}><PanelLeftClose size={15}/></button></div>
+                <div className="reference-release"><AppUpdates/></div>
+                {showBlock("project") && sidebarBlocks.project}
+                <nav className="reference-nav" aria-label="Workspace"><p>Workspace</p>{(["chat","task","note","mission","videos"] as const).map(id=>{const item=navItems.find(n=>n.id===id);return item && showBlock(id) && <button key={id} aria-current={id===view?"page":undefined} onClick={()=>setView(id)}><item.icon size={16}/>{label(id,({chat:"Chat",task:"Tasks",note:"Notes",mission:"Mission Control",videos:"Videos & images"})[id])}</button>})}</nav>
+                {showBlock("rooms") && sidebarBlocks.rooms}
+                <button className="reference-more" aria-expanded={moreTools} onClick={()=>setMoreTools(!moreTools)}><MoreHorizontal size={15}/>Workspace tools</button></>}
+              <div className={roomShell ? "workspace-tools-drawer" : undefined} data-open={moreTools} inert={roomShell && !moreTools}><div className="workspace-tools-inner">
               {orderedItems(SIDEBAR_SECTIONS, layout.sections).filter(section => showBlock(section.id)).map(section => {
+                if(roomShell && ["project","rooms"].includes(section.id))return null;
                 if (sidebarBlocks[section.id]) return <Fragment key={section.id}>{sidebarBlocks[section.id]}</Fragment>;
                 const links = navItems.filter(item => showBlock(item.id) &&
                   (NAV_SECTIONS.some(group => group.id === layout.placements[item.id]) ? layout.placements[item.id] : item.group) === section.id);
@@ -754,10 +757,12 @@ export default function Workspace({ token }: { token: string }) {
                   </nav>
                 </div>;
               })}
+              </div></div>
+              {roomShell && <div className="reference-settings"><button onClick={()=>setSettings("features")}><Settings2 size={15}/>Settings</button><button title="Customize workspace" aria-label="Customize workspace layout" onClick={()=>setSettings("layout")}><SlidersHorizontal size={15}/></button></div>}
             </aside>
           </>
         )}
-        <main className="workspace-canvas">
+        <main key={view} className="workspace-canvas">
           {status?.paused && (
             <div className="paused-banner">
               <Pause size={14} />
@@ -776,7 +781,7 @@ export default function Workspace({ token }: { token: string }) {
               </button>
             </div>
           )}
-          {status && kinds.length > 0 && view !== "videos" && <div className="workspace-record-bar">
+          {status && kinds.length > 0 && view !== "videos" && view !== "chat" && <div className="workspace-record-bar">
             <span>{navItem?.name ?? (view === "collaboration" ? "Collaboration" : "Conversation records")}</span>
             <button onClick={() => setManageRecords(true)}><ListChecks size={15}/>Manage records</button>
           </div>}
@@ -817,6 +822,7 @@ export default function Workspace({ token }: { token: string }) {
                   placeName: status.placeName,
                   paused: !!status.paused,
                 }}
+                queueControl={queueControl}
                 focusAgent={(name) => {
                   setSelectedAgent(name);
                   setView("chat");
