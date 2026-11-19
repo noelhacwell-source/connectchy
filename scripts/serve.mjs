@@ -60,11 +60,14 @@ tunnel?.stdout.on('data', log);
 tunnel?.stderr.on('data', log);
 tunnel?.on('error', error => { clearInterval(heartbeat); console.error('Could not start the public tunnel:', error.message); process.exitCode = 1; });
 tunnel?.on('exit', () => { clearInterval(heartbeat); clearOwnedState(); });
-let app;
-if (!process.argv.includes('--tunnel-only')) {
+let app, stopUpdatedApp;
+if(process.argv.includes('--production')){
+  const {serveWithUpdates}=await import('./app-updates.mjs');
+  stopUpdatedApp=await serveWithUpdates({root:process.cwd(),dir,port,onExit:code=>{stopDatabaseWatch?.();tunnel?.kill();process.exitCode=code}});
+} else if (!process.argv.includes('--tunnel-only')) {
   app = spawn(process.execPath, ['node_modules/next/dist/bin/next', process.argv.includes('--production') ? 'start' : 'dev', '--hostname', '0.0.0.0', '--port', port], { windowsHide: true, stdio: 'inherit' });
   app.on('exit', code => { stopDatabaseWatch?.(); tunnel?.kill(); process.exitCode = code || 0; });
 }
-function stop() { stopDatabaseWatch?.(); clearInterval(heartbeat); tunnel?.kill(); app?.kill(); clearOwnedState(); }
+function stop() { stopUpdatedApp?.(); stopDatabaseWatch?.(); clearInterval(heartbeat); tunnel?.kill(); app?.kill(); clearOwnedState(); }
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);

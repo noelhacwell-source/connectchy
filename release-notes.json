@@ -1,0 +1,20 @@
+{
+  "releases": [
+    {
+      "title": "Introducing in-app updates",
+      "changes": [
+        "See available updates when you open Connectchy.",
+        "Review the changelog and install a new build from the app.",
+        "The dashboard reconnects after the updated server starts."
+      ]
+    },
+    {
+      "title": "Introducing Windows setup",
+      "changes": ["One setup command installs a private local database and the tunnel tool."]
+    },
+    {
+      "title": "Introducing Project Upload",
+      "changes": ["Share whole folders with a project link and download updated versions."]
+    }
+  ]
+}

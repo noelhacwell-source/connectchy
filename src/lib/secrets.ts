@@ -2,7 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 function key() {
-  const dir = path.join(process.cwd(), ".local-runtime");
+  const dir = process.env.CONNECTCHY_DATA_DIR || path.join(process.cwd(), ".local-runtime");
   mkdirSync(dir, { recursive: true });
   const file = path.join(dir, "credential-key");
   try { return readFileSync(file); } catch {
