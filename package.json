@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "build": "next build",
-    "start": "node scripts/serve.mjs --production",
+    "start": "node scripts/start-installed.mjs --production",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "tunnel": "node scripts/serve.mjs --tunnel-only"
