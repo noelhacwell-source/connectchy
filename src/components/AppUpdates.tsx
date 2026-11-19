@@ -10,6 +10,7 @@ type Status = {
   installed: string;
   available: string | null;
   message: string;
+  notes?: {title:string; changes:string[]}[];
 };
 export default function AppUpdates() {
   const [state, setState] = useState<Status | null>(null),
@@ -84,6 +85,7 @@ export default function AppUpdates() {
     }
   }
   if (!state) return null;
+  const release = (state.available && state.notes?.[0]) || releaseNotes.releases[0];
   const working = state.phase === "installing" || requested;
   return (
     <>
@@ -107,10 +109,10 @@ export default function AppUpdates() {
           <section className="release-panel">
             <header className="release-heading">
               <span className="release-symbol"><PanelsTopLeft size={25}/></span>
-              <h2>{releaseNotes.releases[0].title}</h2>
+              <h2>{release.title}</h2>
             </header>
             <ul className="release-changes">
-              {releaseNotes.releases[0].changes.map(change => (
+              {release.changes.map(change => (
                 <li key={change}><Check size={15} aria-hidden="true"/><span>{change}</span></li>
               ))}
             </ul>

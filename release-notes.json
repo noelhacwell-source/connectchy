@@ -1,6 +1,14 @@
 {
   "releases": [
     {
+      "title": "Error Fix",
+      "changes": [
+        "VS Code connects using the port in your local workspace link and remembers it when reconnecting.",
+        "Workspace setup now gives VS Code the local link and gives agents their own access link.",
+        "Connection errors identify the dashboard address and explain how to reconnect. Download the updated VSIX from workspace setup."
+      ]
+    },
+    {
       "title": "Better Design",
       "changes": [
         "Chat and Tasks share a sidebar that stays in place when you switch views.",

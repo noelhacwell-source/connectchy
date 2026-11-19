@@ -156,7 +156,7 @@ async function poll(s,context) {
   const journalKey='connectchy.results.'+sha(s.server+s.key+s.root),journal=context.workspaceState.get(journalKey,{});
   while(session===s&&!s.abort.signal.aborted) {
     try {
-      const data=await request(s,'/api/plugin/poll',{client:'vscode',version:'vscode-0.3.0',place:{name:path.basename(s.root)},results:outbox});
+      const data=await request(s,'/api/plugin/poll',{client:'vscode',version:'vscode-'+context.extension.packageJSON.version,place:{name:path.basename(s.root)},results:outbox});
       outbox=[];showState(data.paused?'Stopped':path.basename(s.root));
       for(const command of data.commands??[]) {
         if(journal[command.id]) {outbox.push(journal[command.id]);continue;}
@@ -168,7 +168,7 @@ async function poll(s,context) {
         let checking=false;
         const heartbeat=setInterval(async()=>{
           if(checking)return;checking=true;
-          try {await guard(s,command.id,signal);await request(s,'/api/plugin/poll',{client:'vscode',version:'vscode-0.3.0',noWait:true},signal);}
+          try {await guard(s,command.id,signal);await request(s,'/api/plugin/poll',{client:'vscode',version:'vscode-'+context.extension.packageJSON.version,noWait:true},signal);}
           catch {controller.abort();}finally{checking=false;}
         },2000);
         let entry;
@@ -186,6 +186,18 @@ async function poll(s,context) {
     }
   }
 }
+async function pairingRequest(origin, endpoint, options={}) {
+  let response;
+  try {
+    response=await fetch(origin+endpoint,{...options,redirect:'error',signal:AbortSignal.timeout(10000)});
+  } catch {
+    throw new Error('Cannot reach Connectchy at '+origin+'. Open the local dashboard and copy its VS Code workspace link. For a public AI link, set connectchy.serverUrl to your local dashboard address.');
+  }
+  const data=await response.json().catch(()=>null);
+  if(!data)throw new Error('The server at '+origin+' did not return a Connectchy response. Check the dashboard address.');
+  if(!response.ok)throw new Error(data.error || 'Connectchy returned HTTP '+response.status+'.');
+  return data;
+}
 async function connect(context) {
   if(session){await vscode.window.showInformationMessage('Already connected. Disconnect before switching projects.');return;}
   if(!vscode.workspace.isTrusted)throw new Error('Trust the project in VS Code before connecting.');
@@ -193,18 +205,29 @@ async function connect(context) {
   if(!folders?.length)throw new Error('Open a local project folder in VS Code first.');
   const folder=folders.length===1?folders[0]:await vscode.window.showWorkspaceFolderPick({placeHolder:'Choose the folder to share with your AI team'});
   if(!folder)return;
-  const server=new URL(vscode.workspace.getConfiguration('connectchy').get('serverUrl','http://127.0.0.1:3000'));
+  let server=new URL(vscode.workspace.getConfiguration('connectchy').get('serverUrl','http://127.0.0.1:3000'));
   if(!['http:','https:'].includes(server.protocol)||server.username||server.password||server.pathname!=='/'||server.search||server.hash)throw new Error('Set connectchy.serverUrl to the app address without a path.');
   const secretName='connectchy.connection.'+sha(folder.uri.fsPath),saved=await context.secrets.get(secretName);
   const link=await vscode.window.showInputBox({title:'Connectchy — connect project',prompt:saved?'Paste a VS Code workspace link, or leave blank to reconnect the saved connection.':'Paste the private workspace or AI link from your VS Code workspace in Connectchy.',password:true,ignoreFocusOut:true});
   if(link===undefined)return;
   let key;
-  if(!link.trim()&&saved){const previous=JSON.parse(saved);if(previous.server!==server.origin)throw new Error('Server address changed. Paste a current workspace link.');key=previous.key;}
+  if(!link.trim()&&saved){const previous=JSON.parse(saved);server=new URL(previous.server);key=previous.key;}
   else {
-    const token=link.match(/sl_[A-Za-z0-9_-]{20,100}/)?.[0];if(!token)throw new Error('Paste a current Connectchy workspace or AI link.');
-    const check=await fetch(server.origin+`/api/agent/${token}/status`,{signal:AbortSignal.timeout(10000)});const info=await check.json();
-    if(!check.ok||info.mode!=='vscode')throw new Error('Create a Visual Studio Code workspace in the app and use its link.');
-    const response=await fetch(server.origin+'/api/plugin/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token}),signal:AbortSignal.timeout(10000)});const paired=await response.json();if(!response.ok)throw new Error(paired.error||'Pairing failed.');key=paired.key;
+    const input=link.trim();
+    let token=input;
+    if(!/^sl_[A-Za-z0-9_-]{20,100}$/.test(input)){
+      let url;
+      try {url=new URL(input);} catch {throw new Error('Copy the workspace link from Connectchy’s VS Code setup panel.');}
+      const match=url.pathname.match(/^\/(?:c|api\/agent)\/(sl_[A-Za-z0-9_-]{20,100})\/?$/);
+      if(!match || !['http:','https:'].includes(url.protocol) || url.username || url.password)throw new Error('Paste a Connectchy workspace or AI link.');
+      token=match[1];
+      // Pairing is owner-only. Public AI links use the configured local dashboard.
+      if(['localhost','127.0.0.1','[::1]'].includes(url.hostname) || url.origin===server.origin)server=new URL(url.origin);
+    }
+    const info=await pairingRequest(server.origin, '/api/agent/'+token+'/status');
+    if(info.mode!=='vscode')throw new Error('Create a Visual Studio Code workspace in the app and use its link.');
+    const paired=await pairingRequest(server.origin,'/api/plugin/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+    key=paired.key;
   }
   if(!await vscode.window.showInformationMessage(`Connect ${folder.name} to your AI team?`,{modal:true,detail:'Agents with your private workspace link can read project text. File edits show a diff and require approval here. Terminal commands require separate approval. Disconnect or use Stop in the app at any time.'},'Connect'))return;
   if(session)throw new Error('Another connection was started.');
@@ -225,7 +248,7 @@ function activate(context) {
     vscode.commands.registerCommand('connectchy.disconnect',disconnect),
     vscode.commands.registerCommand('connectchy.toggleAgentMode',()=>toggleAgentMode().catch(error=>vscode.window.showErrorMessage(error.message))),
     vscode.commands.registerCommand('connectchy.showOutput',()=>output.show()),
-    vscode.commands.registerCommand('connectchy.openDashboard',()=>vscode.env.openExternal(vscode.Uri.parse(vscode.workspace.getConfiguration('connectchy').get('serverUrl','http://127.0.0.1:3000')))),
+    vscode.commands.registerCommand('connectchy.openDashboard',()=>vscode.env.openExternal(vscode.Uri.parse(session?.server ?? vscode.workspace.getConfiguration('connectchy').get('serverUrl','http://127.0.0.1:3000')))),
     vscode.workspace.onDidChangeWorkspaceFolders(disconnect));
   showState('Disconnected');
 }
