@@ -13,7 +13,8 @@ export async function ensureDatabase(connectionString) {
     finally { await client.end().catch(() => {}); }
   }
   if (await ready()) return;
-  const script = path.resolve('scripts/embedded-database.mjs');
+  const legacy = path.resolve('.local-runtime/database.mjs');
+  const script = existsSync(legacy) ? legacy : path.resolve('scripts/embedded-database.mjs');
   const portFile=path.resolve('.local-runtime/embedded-port');
   const managedPort=existsSync(portFile)?readFileSync(portFile,'utf8').trim():'55432';
   if (!['localhost', '127.0.0.1'].includes(url.hostname) || url.port !== managedPort || url.pathname !== '/studio_link' || !existsSync(script)) {
