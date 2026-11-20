@@ -149,6 +149,26 @@ generation and already-running Luau cannot be forcibly interrupted. Agent names 
 - The link is a password. Anyone holding it can change the open place. Delete the connection to
   revoke it.
 
+## Start, updates and the Update badge
+
+```powershell
+npm install     # once
+npm start       # every time
+```
+
+No `.bat` file is needed. On the first run `npm start` creates the private local
+database settings, builds the app, prepares the tables and starts the dashboard
+at http://127.0.0.1:3000. Later runs reuse that build and start immediately.
+
+While the app runs it checks the official GitHub `main` branch at startup and
+then **every 10 minutes**. When a newer commit is published, the button at the
+top of Home and every workspace changes from **Changelog** to **Update**; open
+it, review the changes, and choose **Update and restart**. The current dashboard
+stays available while the new version builds.
+
+`npm run start:update` starts the update launcher directly, and
+`npm run dev` runs the development server.
+
 ## Run locally with an existing PostgreSQL server
 
 ```

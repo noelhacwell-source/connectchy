@@ -251,7 +251,9 @@ export async function serveWithUpdates({ root, dir, port, onExit }) {
       if (request) {
         await unlink(signal);
         await install(request.sha);
-      } else if (Date.now() - last > 15 * 60_000) {
+      } else if (Date.now() - last > 10 * 60_000) {
+        // GitHub is re-checked every 10 minutes while the app runs, so the
+        // Update badge at the top appears without restarting Connectchy.
         last = Date.now();
         await check();
       }

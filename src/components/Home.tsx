@@ -1,6 +1,5 @@
 "use client";
 import AppUpdates from "./AppUpdates";
-import DownloadCounter from "./DownloadCounter";
 import LiveCounter from "./LiveCounter";
 
 import ConnectchyLogo from "./ConnectchyLogo";
@@ -300,7 +299,6 @@ export default function Home() {
         </Link>
         <div className="record-actions">
           <LiveCounter/>
-          <DownloadCounter/>
           <AppUpdates/>
           {sections.some((item) => item.id === "home-create") && (
             <a href="#create-workspace" className="hub-header-action">

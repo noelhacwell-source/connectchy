@@ -4,10 +4,11 @@
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "build": "next build",
-    "start": "node scripts/start-installed.mjs --production",
+    "start": "node scripts/start.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "tunnel": "node scripts/serve.mjs --tunnel-only"
+    "tunnel": "node scripts/serve.mjs --tunnel-only",
+    "start:update": "node scripts/serve.mjs --production"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",

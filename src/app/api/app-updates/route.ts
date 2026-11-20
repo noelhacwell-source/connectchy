@@ -10,7 +10,9 @@ async function status() {
       installed: "",
       available: null,
       notes: installedNotes.releases,
-      message: "Start Connectchy with start-windows.cmd to check for updates.",
+      // `npm start` runs without the update launcher unless it is available, so
+      // say plainly that GitHub is not being checked instead of staying silent.
+      message: "Run npm start again to check GitHub for updates. Starting with the update launcher shows Update whenever a newer version is published.",
     };
   return JSON.parse(
     await readFile(

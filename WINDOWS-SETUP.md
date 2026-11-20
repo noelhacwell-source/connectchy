@@ -36,7 +36,7 @@ git clone https://github.com/noelhacwell-source/connectchy.git
 cd connectchy
 ```
 
-**6. Run setup:**
+**6. Run setup once** (installs everything; you never need it again):
 
 ```powershell
 .\setup-windows.cmd
@@ -50,7 +50,7 @@ missing, Connectchy creates it on first start.
 **7. Start Connectchy:**
 
 ```powershell
-.\start-windows.cmd
+npm start
 ```
 
 **Leave this window open.** Open your browser and enter **http://127.0.0.1:3000** in the address bar.
@@ -74,14 +74,14 @@ cd "$env:USERPROFILE\connectchy"
 Then start the app:
 
 ```powershell
-.\start-windows.cmd
+npm start
 ```
 
 Open **http://127.0.0.1:3000** again. Press **Ctrl+C** in the app window when you want to stop the app and its tunnel.
 
 ## Get updates
 
-Open **Changelog** to see what's new. Connectchy checks the official GitHub main branch at startup and every 15 minutes while running. When **Update available** appears, click it, review the changes, and click **Update and restart**. Keep the launcher window open. The existing dashboard stays available during the build, then reconnects to the updated server. Your database and credentials stay in their original local folder.
+Open **Changelog** to see what's new. Connectchy checks the official GitHub main branch at startup and every 10 minutes while running. When **Update** appears at the top of the app, click it, review the changes, and click **Update and restart**. Keep the launcher window open. The existing dashboard stays available during the build, then reconnects to the updated server. Your database and credentials stay in their original local folder.
 
 If you installed before the updater existed using the Git instructions above, stop Connectchy with Ctrl+C, then run each command in PowerShell once:
 
@@ -98,9 +98,9 @@ git pull --ff-only
 ```
 
 ```powershell
-.\start-windows.cmd
+npm start
 ```
 
-If you originally used a ZIP, stop Connectchy, download the latest source ZIP and extract it into a **new folder**. Copy your original .env file and .local-runtime folder there while the database is stopped. Keep the original folder as your backup. Run setup-windows.cmd and start-windows.cmd from the new folder. Git must be installed for subsequent updates.
+If you originally used a ZIP, stop Connectchy, download the latest source ZIP and extract it into a **new folder**. Copy your original .env file and .local-runtime folder there while the database is stopped. Keep the original folder as your backup. Run setup-windows.cmd, then npm start, from the new folder. Git must be installed for subsequent updates.
 
 For maintainers, each push to main makes that revision available. Add an entry at the top of release-notes.json with a title and changes before publishing. Use an “Introducing …” title for a new feature. The latest commit subject also appears on the update notice.
