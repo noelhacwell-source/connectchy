@@ -1,4 +1,7 @@
 import { cleanOrigin, derivePluginKey, findByToken, noStore } from "@/lib/bridge";
+import { recordDownload } from "@/lib/download-counter";
+import { installIdFrom } from "@/lib/download-request";
+import { PLUGIN_RELEASE_VERSION } from "@/lib/download-versions";
 import { PLUGIN_CORE } from "@/lib/plugin-core";
 import { PLUGIN_HANDLERS } from "@/lib/plugin-handlers";
 import { PLUGIN_PLAYTEST } from "@/lib/plugin-playtest";
@@ -21,7 +24,7 @@ function asRbxmx(lua: string) {
 
 /** POST { token, origin?, format? } -> the plugin file with this connection's address and key baked in. */
 export async function POST(req: Request) {
-  let body: { token?: unknown; origin?: unknown; format?: unknown } = {};
+  let body: { token?: unknown; origin?: unknown; format?: unknown; installId?: unknown; platform?: unknown } = {};
   try {
     body = await req.json();
   } catch {
@@ -43,6 +46,19 @@ export async function POST(req: Request) {
   const lua = (PLUGIN_CORE + PLUGIN_PLAYTEST + PLUGIN_ADVANCED + PLUGIN_HANDLERS)
     .replace("__SERVER_URL__", origin)
     .replace("__PLUGIN_KEY__", derivePluginKey(body.token as string));
+
+  // Count the real install: the file is generated only when someone asks for it.
+  try {
+    await recordDownload({
+      installId: installIdFrom(req, body.installId),
+      kind: "plugin",
+      version: PLUGIN_RELEASE_VERSION,
+      platform: typeof body.platform === "string" ? body.platform : null,
+      connectionId: conn.id,
+    });
+  } catch {
+    // A counting failure must never block the file the user asked for.
+  }
 
   const rbxmx = body.format !== "lua";
   return new Response(rbxmx ? asRbxmx(lua) : lua, {

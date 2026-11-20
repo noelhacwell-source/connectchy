@@ -209,3 +209,30 @@
 .release-footer button {align-items:center;justify-content:center;border-radius:9px;background:#a5e9d2;color:#112a22;padding:10px;font-weight:650}
 .release-footer button:disabled {opacity:.65}
 .release-launch:hover {border-color:#82e6c566}
+
+/* Real download counter, shown at the top of Home and the workspace. */
+.download-counter {display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--color-line,#ffffff1f);border-radius:20px;background:var(--color-panel,#151d29);color:var(--color-muted,#b1bfcd);font-size:12px;line-height:1;white-space:nowrap}
+.download-counter:hover {border-color:#82e6c566;color:var(--theme-text,#eef0f4)}
+.download-counter strong {font-size:13px;font-weight:650;color:var(--color-signal,#9ee9cf);font-variant-numeric:tabular-nums}
+.download-counter span {color:inherit}
+.download-counter.unavailable strong {color:#ffb95c}
+.reference-release .download-counter {border-radius:7px}
+.download-panel .release-heading p {margin-top:6px;color:var(--theme-muted,#a7afbd);font-size:13px}
+.download-totals {display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:18px 26px 0}
+.download-totals > div {display:grid;gap:4px;padding:12px;border:1px solid #ffffff14;border-radius:12px;background:#ffffff05}
+.download-totals strong {font-size:24px;font-weight:650;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.download-totals span {display:flex;align-items:center;gap:6px;color:var(--theme-muted,#a7afbd);font-size:12px}
+.download-breakdown {display:grid;gap:10px;padding:16px 26px 0}
+.download-breakdown article {display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #ffffff14;border-radius:12px;background:#ffffff05}
+.download-breakdown h3 {flex:1;min-width:0;font-size:13px;font-weight:600}
+.download-breakdown p {color:var(--theme-muted,#a7afbd);font-size:12px}
+.download-breakdown p strong {color:inherit;font-weight:650}
+.download-breakdown button {display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;background:#a5e9d2;color:#112a22;font-size:12px;font-weight:650}
+.download-breakdown button:disabled {opacity:.55}
+.download-trend {display:flex;align-items:flex-end;gap:3px;height:44px;margin:16px 26px 18px;padding-bottom:1px;border-bottom:1px solid #ffffff14}
+.download-trend span {flex:1;min-width:3px;border-radius:3px 3px 0 0;background:linear-gradient(180deg,#a5e9d2,#5c8f7f)}
+.download-trend .download-note {margin:0 0 6px;border:0}
+.download-note {padding:0 26px;color:#ffb95c;font-size:12px}
+.download-panel .release-footer p:last-child {color:var(--theme-muted,#8d96a6);line-height:1.5}
+@media (max-width:640px) {.download-counter span {display:none}.download-totals {grid-template-columns:1fr}.download-breakdown article {flex-wrap:wrap}}
+.reference-release .download-counter {display:flex;justify-content:center;margin-bottom:6px;border-radius:7px}

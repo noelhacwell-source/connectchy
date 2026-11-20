@@ -38,6 +38,21 @@ export function ownerRequest(req: Request) {
     throw new ApiError(403, "Manage settings from this computer's local dashboard using localhost or its local IP address. Public agent links cannot change owner settings.");
   }
 }
+/**
+ * Reject cross-site form posts to counting routes. Unlike ownerRequest this also
+ * accepts genuinely public agent links, because downloads may be counted there.
+ */
+export function sameOrigin(req: Request) {
+  if (!["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) return;
+  const host = req.headers.get("host");
+  const origin = req.headers.get("origin");
+  if (!host) return;
+  if (origin && origin !== `http://${host}` && origin !== `https://${host}`)
+    throw new ApiError(403, "Use this dashboard to download.");
+  const site = req.headers.get("sec-fetch-site");
+  if (!origin && site && !["same-origin", "none"].includes(site))
+    throw new ApiError(403, "Use this dashboard to download.");
+}
 export function apiError(error: unknown) {
   return Response.json({ ok: false, error: error instanceof ApiError ? error.message : "Request failed. Check the app log for details." }, { status: error instanceof ApiError ? error.status : 500, headers: { "Cache-Control": "no-store" } });
 }

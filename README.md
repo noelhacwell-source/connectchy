@@ -37,6 +37,22 @@ pins, search, moderation, Markdown/JSON export and per-room browser drafts. Revi
 and protected paths are opt-in. Feature switches retain saved data. View switches hide UI panels;
 feature APIs such as tasks, search, export and checkpoints also enforce their own switch.
 
+## Download counter
+
+The top of Home and every workspace shows a **Download Counter** with the real number of installs
+this dashboard has served. It is not a hard-coded figure: rows are written to `install_downloads`
+only when the server actually hands out a Studio plugin file (`POST /api/plugin/download`) or the
+packaged VS Code extension (`POST /api/downloads/vscode`), and the badge reads those rows back
+through `GET /api/downloads`. Reporting a download the browser saved without a server round trip is
+`POST /api/downloads` with `{ kind, installId, version?, platform?, token? }`.
+
+The counter stores one row per browser/VS Code install and kind, so repeated downloads raise the
+file total but not the number of people. Only a salted SHA-256 hash of a random install id in
+`localStorage` is kept - never an IP address, user agent, account or the id itself - and the id can
+be reset by clearing site data. If the database is unreachable the badge shows "—" rather than a
+guess. `node scripts/verify-download-counter.mjs` checks counting, de-duplication, the served files
+and that only hashes are stored.
+
 Review proposals do not execute until approved locally. Script proposals show captured source
 and a line diff, and approval rejects a changed baseline. Protected paths enforce typed command
 targets and block AI run_luau, undo and redo (including inside batches). They are not a sandbox
