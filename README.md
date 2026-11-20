@@ -37,6 +37,39 @@ pins, search, moderation, Markdown/JSON export and per-room browser drafts. Revi
 and protected paths are opt-in. Feature switches retain saved data. View switches hide UI panels;
 feature APIs such as tasks, search, export and checkpoints also enforce their own switch.
 
+## Live online counter
+
+The top of Home and every workspace shows how many copies of Connectchy are
+running **right now**, and the number is animated when it changes. Each running
+copy checks in every 30 seconds and stays counted for 90 seconds, so the number
+rises when someone starts the app and falls when they stop it.
+
+- **Public.** Every copy writes one tiny marker file into `presence/` in this
+  repository the first time it runs, and removes it on a clean stop. The public
+  number is the number of marker files, so every dashboard in the world shows the
+  same figure, read back from GitHub without signing in.
+- **Anonymous.** A marker holds a version string and a date. The marker name is a
+  hash of a random install id kept on that computer; no account, IP address,
+  machine name or person is stored. Markers live at `presence/<marker>.json` and
+  `.github/workflows/presence.yml` validates every signal before it can be added.
+- **Resilient.** If GitHub cannot be reached, the badge falls back to this
+  dashboard's own live count and is labelled as local rather than showing a wrong
+  number.
+
+Turning on the public relay (repository owner, once):
+
+1. Create a fine-grained token with **Contents: Read and write** on this
+   repository, then add it as the repository secret
+   `CONNECTCHY_PRESENCE_TOKEN`.
+2. Add it as the same environment variable on the machine that hosts the
+   dashboard, together with `CONNECTCHY_PRESENCE_REPO` if you forked the repo.
+3. Optionally add a `CONNECTCHY_PRESENCE_SALT` value so hashes cannot be
+   reproduced from an install id alone.
+
+`GET /api/presence` returns the current number, `POST /api/presence` checks a
+running copy in (and publishes its marker once), and `DELETE /api/presence`
+removes a copy when it stops.
+
 ## Download counter
 
 The top of Home and every workspace shows a **Download Counter** with the real number of installs

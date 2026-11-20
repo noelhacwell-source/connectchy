@@ -21,9 +21,10 @@ export async function GET() {
       onlineHere().catch(() => 0),
       readPublicPresence().catch(() => ({ online: 0, known: false })),
     ]);
-    // GitHub is the public truth whenever it answers; the local count is only a
-    // fallback for an unconfigured or unreachable service.
-    const source: Public["source"] = remote.known ? "github" : "local";
+    // The public GitHub number is shown whenever markers can actually be
+    // published. Before the relay is configured there is nothing public to read,
+    // so the dashboard shows its own live count and says so.
+    const source: Public["source"] = remote.known && presenceConfigured() ? "github" : "local";
     return Response.json(
       {
         online: source === "github" ? remote.online : local,

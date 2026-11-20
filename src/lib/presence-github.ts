@@ -75,44 +75,48 @@ export async function removePresence(marker: string) {
 /**
  * Public count: marker files on the branch.
  *
- * The contents API stops at 1,000 files per folder, so the count is read from the
- * Git Trees API instead (100,000 entries). Results are cached briefly because
- * unauthenticated GitHub requests are limited to 60 per hour per address; with a
- * token the higher limit applies and the cache can be shorter.
+ * A Git tree is content-addressed, so counting the `presence` folder once per
+ * distinct tree sha is both exact (no 1,000-file listing cap) and cheap: while
+ * the folder does not change, every reader reuses the previous number without
+ * another request. This works with or without a token.
  */
 type PublicCount = { online: number; known: boolean };
-let cached: { at: number; value: PublicCount } | null = null;
+let cached: { treeSha: string; value: PublicCount } | null = null;
 
 export async function readPublicPresence(): Promise<PublicCount> {
-  const ttl = presenceConfigured() ? 15_000 : 120_000;
-  if (cached && Date.now() - cached.at < ttl) return cached.value;
-  const value = await countMarkers().catch(() => ({ online: 0, known: false }));
-  if (value.known) cached = { at: Date.now(), value };
-  return value;
+  return countMarkers().catch(() => ({ online: 0, known: false }));
+}
+
+async function github(headers: Record<string, string>, url: string) {
+  const all: Record<string, string> = { Accept: "application/vnd.github+json", "User-Agent": "connectchy-presence" };
+  if (presenceConfigured()) all.Authorization = `Bearer ${token}`;
+  for (const [key, value] of Object.entries(headers)) all[key] = value;
+  return fetch(url, { headers: all, cache: "no-store", signal: AbortSignal.timeout(8000) });
 }
 
 async function countMarkers(): Promise<PublicCount> {
-  const headers: Record<string, string> = { Accept: "application/vnd.github+json", "User-Agent": "connectchy-presence" };
-  if (presenceConfigured()) headers.Authorization = `Bearer ${token}`;
-  const root = await fetch(`${api}/repos/${repo}/git/trees/${branch}`, {
-    headers,
-    cache: "no-store",
-    signal: AbortSignal.timeout(8000),
-  });
-  if (root.status === 404) return { online: 0, known: true };
+  // 1. The current commit on the branch.
+  const head = await github({}, `${api}/repos/${repo}/commits/${branch}`);
+  if (head.status === 404) return { online: 0, known: true };
+  if (!head.ok) return { online: 0, known: false };
+  const commit = (await head.json()) as { sha?: string };
+  if (!commit.sha) return { online: 0, known: false };
+
+  // 2. That commit's root tree.
+  const root = await github({}, `${api}/repos/${repo}/git/trees/${commit.sha}`);
   if (!root.ok) return { online: 0, known: false };
-  const tree = (await root.json()) as { tree: { path: string; type: string; sha: string }[] };
-  const folder = tree.tree.find((entry) => entry.path === "presence");
+  const tree = (await root.json()) as { tree?: { path: string; type: string; sha: string }[] };
+  const folder = tree.tree?.find((entry) => entry.path === "presence" && entry.type === "tree");
   if (!folder) return { online: 0, known: true };
 
-  const inside = await fetch(`${api}/repos/${repo}/git/trees/${folder.sha}`, {
-    headers,
-    cache: "no-store",
-    signal: AbortSignal.timeout(8000),
-  });
+  // 3. Same folder contents as last time? Reuse the count.
+  if (cached?.treeSha === folder.sha) return cached.value;
+
+  const inside = await github({}, `${api}/repos/${repo}/git/trees/${folder.sha}`);
   if (!inside.ok) return { online: 0, known: false };
-  const listing = (await inside.json()) as { tree: { path: string; type: string }[]; truncated?: boolean };
-  const online = listing.tree.filter((entry) => entry.type === "blob" && entry.path.endsWith(".json")).length;
-  // A truncated listing would under-count; report it as unknown instead of a wrong number.
-  return listing.truncated ? { online, known: false } : { online, known: true };
+  const listing = (await inside.json()) as { tree?: { path: string; type: string }[]; truncated?: boolean };
+  if (!listing.tree || listing.truncated) return { online: 0, known: false };
+  const value = { online: listing.tree.filter((entry) => entry.type === "blob" && entry.path.endsWith(".json")).length, known: true };
+  cached = { treeSha: folder.sha, value };
+  return value;
 }
