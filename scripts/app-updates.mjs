@@ -16,47 +16,29 @@ import { promisify } from "node:util";
 import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
+import {
+  OFFICIAL_REPO as official,
+  OFFICIAL_BRANCH as officialBranch,
+  isNewer,
+  validSha,
+  readJson as json,
+  writeJsonAtomic as atomic,
+  git,
+  runNode,
+  pruneBuilds,
+} from "../src/lib/update-engine.mjs";
 
 const exec = promisify(execFile);
-const official = "https://github.com/noelhacwell-source/connectchy.git";
-const validSha = (s) => typeof s === "string" && /^[0-9a-f]{40}$/.test(s);
-async function json(file) {
-  try {
-    return JSON.parse(await readFile(file, "utf8"));
-  } catch (e) {
-    if (e.code === "ENOENT") return null;
-    throw e;
-  }
-}
-async function atomic(file, value) {
-  const tmp = file + "." + randomUUID();
-  await writeFile(tmp, JSON.stringify(value));
-  await rename(tmp, file);
-}
-function git(args, cwd) {
-  return exec("git", ["-c", "credential.interactive=false", ...args], {
-    cwd,
-    windowsHide: true,
-    timeout: 60000,
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-  }).then((r) => r.stdout.trim());
-}
-async function runNode(args, cwd) {
-  const p = spawn(process.execPath, args, {
-    cwd,
-    stdio: "inherit",
-    windowsHide: true,
-    env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1" },
-  });
-  const [code] = await once(p, "exit");
-  if (code !== 0) throw Error("Build command exited with " + code);
-}
+
 export async function serveWithUpdates({ root, dir, port, onExit }) {
   const cache = path.join(dir, "updates");
   await mkdir(cache, { recursive: true });
   const pointer = path.join(cache, "active.json"),
     statusFile = path.join(cache, "status.json");
   const signal = path.join(cache, "install-" + randomUUID() + ".json");
+  // A badge asking GitHub right now writes here; the launcher picks it up in its
+  // next tick, so "refresh" works whether or not the launcher is in charge.
+  const refreshSignal = path.join(cache, "refresh-request.json");
   const mirror = path.join(cache, "official.git");
   const slot = await json(pointer);
   let active =
@@ -146,7 +128,7 @@ export async function serveWithUpdates({ root, dir, port, onExit }) {
         "--depth=30",
         "--no-tags",
         official,
-        "+refs/heads/main:refs/heads/published",
+        `+refs/heads/${officialBranch}:refs/heads/published`,
       ],
       mirror,
     );
@@ -167,7 +149,7 @@ export async function serveWithUpdates({ root, dir, port, onExit }) {
     await publish({
       history,
       phase: "idle",
-      available: sha !== installed ? sha : null,
+      available: await isNewer(mirror, root, sha, installed) ? sha : null,
       notes,
       summary,
       message: "",
@@ -247,6 +229,12 @@ export async function serveWithUpdates({ root, dir, port, onExit }) {
     if (busy || closed) return;
     busy = true;
     try {
+      const refresh = await json(refreshSignal);
+      if (refresh) {
+        await unlink(refreshSignal).catch(() => {});
+        last = Date.now();
+        await check();
+      }
       const request = await json(signal);
       if (request) {
         await unlink(signal);

@@ -1,6 +1,15 @@
 {
   "releases": [
     {
+      "title": "Update Works From Any Start",
+      "changes": [
+        "The Update button now appears however Connectchy was started: npm start, the launcher, a shortcut, or a plain production server. Nothing has to be announced or installed by hand.",
+        "Clicking Update builds the new version beside the running app, then the app restarts itself on the same address. If the new version cannot start, the previous one comes back automatically.",
+        "Only real newer releases are offered, so a copy that is already up to date (or newer) never shows an update.",
+        "A finished update is remembered, so the next start keeps running the version you updated to."
+      ]
+    },
+    {
       "title": "Update Badge and Simple Start",
       "changes": [
         "Start Connectchy with npm start - no start file, no manual build and no database setup. The first run prepares everything by itself.",

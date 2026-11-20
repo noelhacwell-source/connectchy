@@ -166,6 +166,19 @@ top of Home and every workspace changes from **Changelog** to **Update**; open
 it, review the changes, and choose **Update and restart**. The current dashboard
 stays available while the new version builds.
 
+The badge does not depend on how the app was started. `npm start` uses the
+update launcher, and a plain production server (`next start`) or a shortcut runs
+the same check from inside the app, so **Update** appears either way. Clicking it
+builds the new version in its own folder while the dashboard keeps working, then
+the app restarts itself on the same address. If the new version cannot start,
+the previous one is started again and the reason is written to
+`.local-runtime/updates/install.log`. Finished updates are remembered in
+`.local-runtime/updates/active.json`, so the next start keeps running them.
+
+Connectchy only offers a release it does not already contain, and it checks
+GitHub at startup and every 10 minutes. If GitHub cannot be reached the app
+keeps working and shows the changelog instead.
+
 `npm run start:update` starts the update launcher directly, and
 `npm run dev` runs the development server.
 
