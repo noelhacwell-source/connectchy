@@ -82,7 +82,9 @@ export default function LiveCounter() {
   }, [delta]);
 
   const online = state?.online ?? 0;
+  const local = state?.local ?? 0;
   const label = failed || !state ? "—" : number.format(online);
+  const showLocal = state && state.source === "local" && local > 0;
   return (
     <span
       className={"live-counter" + (failed ? " unavailable" : "") + (delta ? " " + delta : "")}
@@ -92,13 +94,20 @@ export default function LiveCounter() {
         failed
           ? "The live counter cannot reach its service right now."
           : state?.source === "github"
-            ? `${number.format(online)} copies of Connectchy are running right now (public GitHub count).`
-            : `${number.format(online)} copies are running right now on this dashboard (GitHub not configured).`
+            ? `${number.format(online)} copies of Connectchy are running right now (public GitHub count), ${number.format(local)} on this dashboard.`
+            : `${number.format(local)} copies are running right now on this dashboard (GitHub not configured).`
       }
     >
       <Users size={14} aria-hidden="true" />
       <strong key={online}>{label}</strong>
       <span>online</span>
+      {showLocal && (
+        <span className="local-tag">
+          <Users size={11} aria-hidden="true" />
+          <strong>{number.format(local)}</strong>
+          <span>local</span>
+        </span>
+      )}
       <i className={"pulse" + (state?.source === "github" ? "" : " local")} aria-hidden="true" />
       {delta && <em className="change">{delta === "up" ? "+1" : "−1"}</em>}
     </span>
