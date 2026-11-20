@@ -122,7 +122,13 @@ export async function fetchPublished(mirror, root) {
  */
 export async function isNewer(mirror, root, published, installed) {
   if (!validSha(published)) return false;
-  if (!validSha(installed) || installed === published) return false;
+  // An abbreviated revision (a short commit hash in a launch script) is still a
+  // real answer; only give up when the installed revision is unknown.
+  if (!/^[0-9a-f]{7,40}$/.test(String(installed ?? "")) || installed === published) return false;
+  if (String(installed).length !== 40) {
+    const full = await git(["rev-parse", "--verify", `${installed}^{commit}`], mirror).catch(() => "");
+    if (validSha(full)) installed = full;
+  }
   const contains = async () => {
     try {
       await git(["merge-base", "--is-ancestor", published, installed], mirror);
