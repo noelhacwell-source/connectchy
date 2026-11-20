@@ -15,6 +15,12 @@ export const dynamic = "force-dynamic";
 async function status() {
   if (!process.env.CONNECTCHY_UPDATE_SIGNAL) {
     ensureUpdateWatcher();
+    const state = currentState();
+    // On the very first request, wait for the initial GitHub check so the
+    // badge shows "Update" right away instead of flashing "Changelog".
+    if (!state.checkedAt && state.phase === "checking") {
+      await checkForUpdate();
+    }
     return { ...currentState(), notes: currentState().notes ?? installedNotes.releases, managed: false };
   }
   return { managed: true, ...JSON.parse(await readFile(path.join(path.dirname(process.env.CONNECTCHY_UPDATE_SIGNAL), "status.json"), "utf8")) };
