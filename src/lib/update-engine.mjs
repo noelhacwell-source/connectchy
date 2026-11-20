@@ -17,6 +17,8 @@ import { setTimeout as delay } from "node:timers/promises";
  */
 const exec = promisify(execFile);
 export const OFFICIAL_REPO = process.env.CONNECTCHY_UPDATE_REPO || "https://github.com/noelhacwell-source/connectchy.git";
+/** Branch that holds published releases (overridable for testing). */
+export const OFFICIAL_BRANCH = process.env.CONNECTCHY_UPDATE_BRANCH || "main";
 export const validSha = (s) => typeof s === "string" && /^[0-9a-f]{40}$/.test(s);
 
 export async function readJson(file) {
@@ -82,7 +84,10 @@ export function npmCli() {
       /* Not on PATH under this name. */
     }
   }
-  for (const candidate of candidates) if (candidate && existsSync(candidate)) return candidate;
+  for (const candidate of candidates) {
+    // Build-time tracing cannot follow these paths; they are only probed at run time.
+    if (candidate && existsSync(/*turbopackIgnore: true*/ candidate)) return candidate;
+  }
   // Last resort: let the shell resolve npm; a failure is reported in the log.
   return "npm";
 }
@@ -93,7 +98,7 @@ export function npmCli() {
  */
 export async function fetchPublished(mirror, root) {
   if (!existsSync(mirror)) await git(["init", "--bare", mirror], root);
-  await git(["fetch", "--depth=30", "--no-tags", OFFICIAL_REPO, "+refs/heads/main:refs/heads/published"], mirror);
+  await git(["fetch", "--depth=30", "--no-tags", OFFICIAL_REPO, `+refs/heads/${OFFICIAL_BRANCH}:refs/heads/published`], mirror);
   const sha = await git(["rev-parse", "refs/heads/published"], mirror);
   if (!validSha(sha)) throw Error("Invalid published revision.");
   let notes = null;
@@ -105,6 +110,40 @@ export async function fetchPublished(mirror, root) {
   const summary = await git(["log", "-1", "--format=%s", sha], mirror);
   const history = (await git(["log", "--first-parent", "-15", "--format=%s", sha], mirror)).split("\n");
   return { sha, notes, summary, history };
+}
+
+/**
+ * Is `published` genuinely newer than `installed`?
+ *
+ * Only the published branch head can be downloaded, so a copy that already
+ * contains it (a build made after the release, or a newer branch) must never be
+ * told to "update" to something older. When the two commits cannot be compared
+ * the update is offered, because missing a real update is the worse mistake.
+ */
+export async function isNewer(mirror, root, published, installed) {
+  if (!validSha(published)) return false;
+  if (!validSha(installed) || installed === published) return false;
+  const contains = async () => {
+    try {
+      await git(["merge-base", "--is-ancestor", published, installed], mirror);
+      return true; // `installed` already includes `published`.
+    } catch {
+      return false;
+    }
+  };
+  const known = async () => {
+    try {
+      await git(["cat-file", "-e", `${installed}^{commit}`], mirror);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  // The mirror only has the published branch; ask for the installed commit too.
+  if (!(await known())) await git(["fetch", "--depth=1", OFFICIAL_REPO, installed], mirror).catch(() => {});
+  if (await contains()) return false;
+  // A commit git has never seen cannot be compared; offer the update.
+  return true;
 }
 
 /** Clone one published revision into its own build slot and install + build it. */

@@ -6,7 +6,16 @@ import { execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
 import "dotenv/config";
-import { buildRevision, git, OFFICIAL_REPO, pruneBuilds, writeJsonAtomic, readJson, validSha } from "../src/lib/update-engine.js";
+import {
+  buildRevision,
+  git,
+  OFFICIAL_REPO,
+  OFFICIAL_BRANCH,
+  pruneBuilds,
+  writeJsonAtomic,
+  readJson,
+  validSha,
+} from "../src/lib/update-engine.mjs";
 
 /**
  * Detached installer, started by the app when the owner clicks Update.
@@ -283,7 +292,10 @@ if (command === "install") {
   let built = null;
   try {
     if (!existsSync(mirror)) await git(["init", "--bare", mirror], root);
-    await git(["fetch", "--depth=30", "--no-tags", OFFICIAL_REPO, "+refs/heads/main:refs/heads/published"], mirror).catch(() => {});
+    await git(
+      ["fetch", "--depth=30", "--no-tags", OFFICIAL_REPO, `+refs/heads/${OFFICIAL_BRANCH}:refs/heads/published`],
+      mirror,
+    ).catch(() => {});
     built = await buildRevision({
       mirror,
       cache,

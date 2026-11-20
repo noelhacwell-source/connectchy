@@ -25,7 +25,17 @@ export async function GET(req: Request) {
     ownerRequest(req);
     const url = new URL(req.url);
     // A manual refresh asks GitHub again instead of showing the 10-minute cache.
-    if (!process.env.CONNECTCHY_UPDATE_SIGNAL && url.searchParams.has("refresh")) await checkForUpdate();
+    if (url.searchParams.has("refresh")) {
+      if (process.env.CONNECTCHY_UPDATE_SIGNAL) {
+        // The launcher owns the check; leave a request it picks up right away.
+        const folder = path.dirname(process.env.CONNECTCHY_UPDATE_SIGNAL);
+        await writeFile(path.join(folder, "refresh-request.json"), JSON.stringify({ at: Date.now() })).catch(() => {});
+        // Give it a moment so this response already carries the fresh answer.
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      } else {
+        await checkForUpdate();
+      }
+    }
     return Response.json(await status(), { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     return apiError(e);

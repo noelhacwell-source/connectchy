@@ -4,7 +4,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { fetchPublished, validSha } from "./update-engine";
+import { fetchPublished, isNewer, validSha } from "./update-engine.mjs";
 
 type Published = {
   sha: string;
@@ -89,9 +89,11 @@ export async function checkForUpdate(): Promise<UpdateState> {
   try {
     const published: Published = await fetchPublished(mirror, process.cwd());
     const installed = await installedRevision();
+    const known = installed || box.state.installed;
     box.state = {
-      installed: installed || box.state.installed,
-      available: published.sha !== (installed || box.state.installed) ? published.sha : null,
+      installed: known,
+      // Never offer a release this install already contains (or is newer than).
+      available: await isNewer(mirror, process.cwd(), published.sha, known) ? published.sha : null,
       phase: "idle",
       message: "",
       notes: published.notes ?? box.state.notes,
