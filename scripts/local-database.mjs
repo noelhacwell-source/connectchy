@@ -4,7 +4,7 @@ import { existsSync, openSync, closeSync, readFileSync, writeFileSync, rmSync, s
 import path from 'node:path';
 
 export async function ensureDatabase(connectionString) {
-  if (!connectionString) throw new Error('DATABASE_URL is missing. Configure it in .env before starting the app.');
+  if (!connectionString) throw new Error('No database is configured yet. Run npm start (or .\\start-windows.cmd) so Connectchy can create its private local database.');
   const url = new URL(connectionString);
   async function ready() {
     const client = new Client({ connectionString, connectionTimeoutMillis: 1000 });

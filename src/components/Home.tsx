@@ -1,6 +1,7 @@
 "use client";
 import AppUpdates from "./AppUpdates";
 import DownloadCounter from "./DownloadCounter";
+import LiveCounter from "./LiveCounter";
 
 import ConnectchyLogo from "./ConnectchyLogo";
 import ProjectUploads from "./ProjectUploads";
@@ -298,6 +299,7 @@ export default function Home() {
           <strong>Connectchy</strong>
         </Link>
         <div className="record-actions">
+          <LiveCounter/>
           <DownloadCounter/>
           <AppUpdates/>
           {sections.some((item) => item.id === "home-create") && (

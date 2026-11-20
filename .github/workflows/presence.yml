@@ -1,0 +1,72 @@
+name: Presence signal
+
+# Every running copy of Connectchy publishes one tiny marker file:
+#   presence/<marker>.json  ->  { "version": "1.4.1", "firstSeen": "2026-11-20" }
+# The public "currently online" number is the count of those files, so this job
+# only has to make sure the signal looks like a real install marker and that the
+# same copy cannot add a second one.
+
+on:
+  repository_dispatch:
+    types: [presence]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: presence-signal
+  cancel-in-progress: false
+
+jobs:
+  record:
+    # Signals from copies running on their owner's computer; the repository
+    # owner may also run this by hand to verify it.
+    if: github.event_name == 'workflow_dispatch' || github.event.client_payload.marker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate the signal
+        id: signal
+        env:
+          MARKER: ${{ github.event.client_payload.marker }}
+          VERSION: ${{ github.event.client_payload.version }}
+        run: |
+          set -euo pipefail
+          # A marker is 32 url-safe characters derived from a random install id.
+          if ! printf '%s' "$MARKER" | grep -Eq '^[A-Za-z0-9_-]{16,64}$'; then
+            echo "::error::Ignoring a signal that is not a valid install marker."
+            exit 1
+          fi
+          # Only keep a coarse, non-identifying version string.
+          if ! printf '%s' "$VERSION" | grep -Eq '^[A-Za-z0-9._-]{0,40}$'; then
+            echo "::warning::Ignoring an unexpected version string."
+            VERSION=""
+          fi
+          echo "marker=$MARKER" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+
+      - name: Keep one marker per copy
+        env:
+          MARKER: ${{ steps.signal.outputs.marker }}
+          VERSION: ${{ steps.signal.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p presence
+          file="presence/${MARKER}.json"
+          if [ -f "$file" ]; then
+            echo "This copy is already counted; nothing to add."
+            exit 0
+          fi
+          # Store the marker and a date only. Never an IP, account or machine name.
+          printf '{\n  "version": "%s",\n  "firstSeen": "%s"\n}\n' "${VERSION:-unknown}" "$(date -u +%F)" > "$file"
+          git config user.name "connectchy-presence"
+          git config user.email "presence@users.noreply.github.com"
+          git add "$file"
+          git commit -m "presence: one more running copy"
+          git push
+
+      - name: Report the public count
+        run: |
+          echo "Running copies counted publicly: $(find presence -name '*.json' | wc -l)"

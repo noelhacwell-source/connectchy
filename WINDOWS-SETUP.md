@@ -44,6 +44,9 @@ cd connectchy
 
 Wait for **Setup complete**. This downloads the official Cloudflare tunnel tool, creates a private PostgreSQL database on your PC, generates its password, and builds the app. Everything is set up for you. If setup stops, read the last error and repeat step 6 after fixing it.
 
+You do not need to create a `.env` file or look up a database address. If one is
+missing, Connectchy creates it on first start.
+
 **7. Start Connectchy:**
 
 ```powershell

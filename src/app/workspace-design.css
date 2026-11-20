@@ -236,3 +236,20 @@
 .download-panel .release-footer p:last-child {color:var(--theme-muted,#8d96a6);line-height:1.5}
 @media (max-width:640px) {.download-counter span {display:none}.download-totals {grid-template-columns:1fr}.download-breakdown article {flex-wrap:wrap}}
 .reference-release .download-counter {display:flex;justify-content:center;margin-bottom:6px;border-radius:7px}
+
+/* Live "currently online" counter with an animated, changing number. */
+.live-counter {position:relative;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #82e6c540;border-radius:20px;background:#82e6c510;color:var(--theme-text,#eef0f4);font-size:12px;line-height:1;white-space:nowrap}
+.live-counter strong {font-size:13px;font-weight:650;color:#9ee9cf;font-variant-numeric:tabular-nums;transition:color .3s}
+.live-counter span {color:var(--theme-muted,#a7afbd)}
+.live-counter .pulse {width:6px;height:6px;border-radius:100%;background:#9ee9cf;box-shadow:0 0 0 0 #9ee9cf88;animation:live-pulse 2.4s ease-out infinite}
+.live-counter .pulse.local {background:#ffb95c}
+.live-counter .change {position:absolute;top:-14px;right:8px;font-size:10px;font-weight:700;font-style:normal;color:#9ee9cf}
+.live-counter.down .change {color:#ff8fa8}
+.live-counter.up strong {animation:live-up .6s cubic-bezier(.22,1,.36,1)}
+.live-counter.down strong {animation:live-down .6s cubic-bezier(.22,1,.36,1)}
+.live-counter.unavailable strong {color:#ffb95c}
+.reference-release .live-counter {display:flex;justify-content:center;margin-bottom:6px;border-radius:7px}
+@keyframes live-pulse {0% {box-shadow:0 0 0 0 #9ee9cf6b} 70% {box-shadow:0 0 0 7px #9ee9cf00} 100% {box-shadow:0 0 0 0 #9ee9cf00}}
+@keyframes live-up {0% {opacity:.2;transform:translateY(7px) scale(1.12)} 100% {opacity:1;transform:none}}
+@keyframes live-down {0% {opacity:.2;transform:translateY(-7px) scale(.9)} 100% {opacity:1;transform:none}}
+@media (max-width:640px) {.live-counter span {display:none}}

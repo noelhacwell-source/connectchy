@@ -1,6 +1,7 @@
 "use client";
 import AppUpdates from "./AppUpdates";
 import DownloadCounter from "./DownloadCounter";
+import LiveCounter from "./LiveCounter";
 import ButtonDesigner from "./ButtonDesigner";
 import { Fragment } from "react";
 import RecordManager from "./RecordManager";
@@ -714,6 +715,7 @@ export default function Workspace({ token }: { token: string }) {
     >
       <ButtonDesigner layout={layout} update={customization.update}/>
       {(!roomShell || moreTools) && <header className="workspace-topbar">
+        <LiveCounter/>
         {!roomShell && <DownloadCounter token={token}/>}
         {!roomShell && <AppUpdates/>}
         {roomShell && <DownloadCounter token={token}/>}
@@ -736,7 +738,7 @@ export default function Workspace({ token }: { token: string }) {
             />
             <aside className="workspace-sidebar">
               {roomShell && <><div className="reference-brand"><Link href="/"><ConnectchyLogo className="design-logo"/>Connectchy</Link><button className="icon-button" aria-label="Collapse sidebar" onClick={()=>setSidebar(false)}><PanelLeftClose size={15}/></button></div>
-                <div className="reference-release"><DownloadCounter token={token}/><AppUpdates/></div>
+                <div className="reference-release"><LiveCounter/><DownloadCounter token={token}/><AppUpdates/></div>
                 {showBlock("project") && sidebarBlocks.project}
                 <nav className="reference-nav" aria-label="Workspace"><p>Workspace</p>{(["chat","task","note","mission","videos"] as const).map(id=>{const item=navItems.find(n=>n.id===id);return item && showBlock(id) && <button key={id} aria-current={id===view?"page":undefined} onClick={()=>setView(id)}><item.icon size={16}/>{label(id,({chat:"Chat",task:"Tasks",note:"Notes",mission:"Mission Control",videos:"Videos & images"})[id])}</button>})}</nav>
                 {showBlock("rooms") && sidebarBlocks.rooms}
