@@ -14,7 +14,13 @@ type Status = {
 };
 export default function AppUpdates() {
   const [state, setState] = useState<Status | null>(null),
-    [open, setOpen] = useState(false),
+    [open, setOpen] = useState(() => {
+      try {
+        return sessionStorage.getItem("connectchy:installing") === "1";
+      } catch {
+        return false;
+      }
+    }),
     [requested, setRequested] = useState(false),
     [error, setError] = useState("");
   useEffect(() => {
@@ -42,7 +48,17 @@ export default function AppUpdates() {
         )
           interval = 1200;
         if (data.phase === "error") setRequested(false);
+        if (data.phase === "installing")
+          try {
+            sessionStorage.setItem("connectchy:installing", "1");
+          } catch {}
         if (data.phase === "idle" && !data.available && data.installed) {
+          try {
+            if (sessionStorage.getItem("connectchy:installing") === "1") {
+              sessionStorage.removeItem("connectchy:installing");
+              setOpen(true);
+            }
+          } catch {}
           try {
             const last = localStorage.getItem("connectchy:release-seen");
             if (
@@ -55,6 +71,8 @@ export default function AppUpdates() {
           } catch {}
         }
       } catch {
+        // The server restarts itself during a self-install. Keep the window open
+        // and reload as soon as the new revision answers.
         interval = 2000;
       }
       if (!stopped) timer = setTimeout(poll, interval);
