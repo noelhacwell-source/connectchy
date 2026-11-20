@@ -225,9 +225,12 @@
 @keyframes live-pulse {0% {box-shadow:0 0 0 0 #9ee9cf6b} 70% {box-shadow:0 0 0 7px #9ee9cf00} 100% {box-shadow:0 0 0 0 #9ee9cf00}}
 @keyframes live-up {0% {opacity:.2;transform:translateY(7px) scale(1.12)} 100% {opacity:1;transform:none}}
 @keyframes live-down {0% {opacity:.2;transform:translateY(-7px) scale(.9)} 100% {opacity:1;transform:none}}
+.live-counter .local-tag {display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border:1px solid #ffb95c40;border-radius:10px;background:#ffb95c15;color:#ffd9a8;font-size:10px;line-height:1;margin-left:6px}
+.live-counter .local-tag strong {color:#ffd9a8;font-size:11px}
+.live-counter .local-tag span {color:#e0b47a}
 @media (max-width:640px) {.live-counter span {display:none}}
 
-/* "Update" appears at the top as soon as GitHub has a newer version. */
+ /* "Update" appears at the top as soon as GitHub has a newer version. */
 .release-launch.available {background:#a5e9d2;color:#112a22;border-color:#a5e9d2;font-weight:650}
 .release-launch.available:hover {background:#b9f2df;border-color:#b9f2df}
 .release-dot {width:6px;height:6px;border-radius:100%;background:#112a22;margin-left:1px;animation:release-blink 1.8s ease-out infinite}
