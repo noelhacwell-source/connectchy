@@ -152,7 +152,7 @@ export async function buildRevision({ mirror, cache, root, sha, onProgress = () 
   const next = await mkdtemp(path.join(cache, "build-"));
   await git(["clone", "--no-checkout", "--no-hardlinks", mirror, next], root);
   await git(["checkout", "--detach", sha], next);
-  onProgress("Installing dependencies and building. You can keep using Connectchy.");
+  await onProgress("Installing dependencies and building. You can keep using Connectchy.");
   await runNode([npmCli(), "ci", "--include=dev", "--no-audit", "--no-fund"], next, log);
   await runNode([npmCli(), "run", "build"], next, log);
   if (!existsSync(path.join(next, ".next", "BUILD_ID"))) {

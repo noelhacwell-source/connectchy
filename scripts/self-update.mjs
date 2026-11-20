@@ -301,14 +301,20 @@ if (command === "install") {
       cache,
       root,
       sha,
-      onProgress: (message) => void log(message),
-      log: (line) => void log("  " + line),
+      // Progress must be awaited before the build runs, otherwise the final
+      // lines of a long build are still queued when the swap starts.
+      onProgress: (message) => log(message),
+      log: (line) => log("  " + line),
     });
     await log(`Built ${path.basename(built)}.`);
   } catch (error) {
     await log("Build failed: " + error.message);
     if (built) await rm(built, { recursive: true, force: true, maxRetries: 2 }).catch(() => {});
-    await publish({ phase: "error", available: null, message: "Update failed: " + error.message });
+    await publish({
+      phase: "error",
+      available: null,
+      message: "Update failed: " + error.message + " The version you were using is still running.",
+    });
     process.exit(1);
   }
 
@@ -336,6 +342,7 @@ if (command === "install") {
   }
 
   await log("The new version did not start. Restoring the previous one.");
+  await freePort();
   start(process.env.CONNECTCHY_REVISION ?? "", process.cwd());
   await publish({ phase: "error", available: null, message: "The new version did not start. The previous one is running." });
   process.exit(1);
