@@ -1,6 +1,15 @@
 {
   "releases": [
     {
+      "title": "Live Online Counter",
+      "changes": [
+        "The top of every workspace now shows how many copies of Connectchy are running right now, with an animated count that goes up and down as people open and close the app.",
+        "Each copy reports itself in the background once per install and leaves when it stops, so the number is live installs rather than page views.",
+        "The count is public: it is read back from GitHub without signing in, and the app also shows this computer's own count when GitHub is unreachable.",
+        "New installs never need a database URL again; starting the app creates the private local database by itself."
+      ]
+    },
+    {
       "title": "New Download Counter",
       "changes": [
         "The top of Home and every workspace now shows a Download Counter with the real number of people who downloaded Connectchy.",

@@ -1,28 +1,13 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { createServer } from "node:net";
 import dotenv from "dotenv";
 import pg from "pg";
+import { ensureLocalDatabaseConfig } from "./database-config.mjs";
 import { ensureDatabase } from "./local-database.mjs";
 
-mkdirSync(".local-runtime", { recursive: true });
-if (!existsSync(".env") && !process.env.DATABASE_URL) {
-  const probe = createServer();
-  async function available(port) {
-    await new Promise((resolve,reject)=>{
-      const fail=err=>{probe.off("listening",ready);reject(err)};
-      const ready=()=>{probe.off("error",fail);resolve()};
-      probe.once("error",fail).once("listening",ready).listen(port,"127.0.0.1");
-    });
-  }
-  try {await available(55432)} catch(err){if(err.code!=="EADDRINUSE")throw err;await available(0)}
-  const port=probe.address().port;
-  await new Promise(resolve=>probe.close(resolve));
-  writeFileSync(".local-runtime/embedded-port",String(port));
-  const password = randomBytes(32).toString("hex");
-  writeFileSync(".env", `DATABASE_URL=postgresql://postgres:${password}@127.0.0.1:${port}/studio_link\n`, {flag:"wx", mode:0o600});
-}
+// Setup and `npm start` share one bootstrap, so a fresh checkout never asks the
+// owner to invent a DATABASE_URL.
+ensureLocalDatabaseConfig();
 dotenv.config();
 await ensureDatabase(process.env.DATABASE_URL);
 const client = new pg.Client({connectionString:process.env.DATABASE_URL});

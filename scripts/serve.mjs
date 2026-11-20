@@ -3,13 +3,25 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node
 import { homedir } from 'node:os';
 import path from 'node:path';
 import 'dotenv/config';
+import { ensureLocalDatabaseConfig } from './database-config.mjs';
+import { checkIn, checkOut } from './presence.mjs';
 import { ensureDatabase, watchDatabase } from './local-database.mjs';
-import { ensureCollaborationSchema } from './collaboration-schema.mjs';
+import { ensureCollaborationSchema, needsSchema, createSchema } from './collaboration-schema.mjs';
 const dir = path.resolve('.local-runtime');
 mkdirSync(dir, { recursive: true });
+// A fresh install has no .env yet: create the private local database instead of
+// stopping with "DATABASE_URL is missing".
+ensureLocalDatabaseConfig();
 let stopDatabaseWatch;
 if (!process.argv.includes('--tunnel-only')) {
-  try { await ensureDatabase(process.env.DATABASE_URL); await ensureCollaborationSchema(process.env.DATABASE_URL); stopDatabaseWatch=watchDatabase(process.env.DATABASE_URL); }
+  try {
+    await ensureDatabase(process.env.DATABASE_URL);
+    // A brand-new local database has no tables yet. Create them once so plain
+    // `npm start` works on a fresh checkout without running setup by hand.
+    if (await needsSchema(process.env.DATABASE_URL)) await createSchema();
+    await ensureCollaborationSchema(process.env.DATABASE_URL);
+    stopDatabaseWatch=watchDatabase(process.env.DATABASE_URL);
+  }
   catch (error) { console.error(error.message); process.exit(1); }
 }
 const state = path.join(dir, 'public-origin.json');
@@ -67,7 +79,10 @@ if(process.argv.includes('--production')){
 } else if (!process.argv.includes('--tunnel-only')) {
   app = spawn(process.execPath, ['node_modules/next/dist/bin/next', process.argv.includes('--production') ? 'start' : 'dev', '--hostname', '0.0.0.0', '--port', port], { windowsHide: true, stdio: 'inherit' });
   app.on('exit', code => { stopDatabaseWatch?.(); tunnel?.kill(); process.exitCode = code || 0; });
+  // Count this running copy in the public "currently online" number. Background
+  // and best-effort: the dashboard never depends on it.
+  if (!process.argv.includes('--tunnel-only')) setTimeout(() => { void checkIn(port).catch(() => {}); }, 4000).unref();
 }
-function stop() { stopUpdatedApp?.(); stopDatabaseWatch?.(); clearInterval(heartbeat); tunnel?.kill(); app?.kill(); clearOwnedState(); }
+function stop() { void checkOut(port); stopUpdatedApp?.(); stopDatabaseWatch?.(); clearInterval(heartbeat); tunnel?.kill(); app?.kill(); clearOwnedState(); }
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);

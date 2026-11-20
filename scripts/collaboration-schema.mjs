@@ -53,8 +53,38 @@ export async function ensureCollaborationSchema(connectionString) {
       );
       CREATE UNIQUE INDEX IF NOT EXISTS install_downloads_install_kind_idx ON install_downloads(install_hash, kind);
       CREATE INDEX IF NOT EXISTS install_downloads_kind_idx ON install_downloads(kind);
+      CREATE TABLE IF NOT EXISTS live_installs (
+        id serial PRIMARY KEY,
+        install_hash text NOT NULL,
+        signal_hash text NOT NULL,
+        first_seen_at timestamptz NOT NULL DEFAULT now(),
+        last_seen_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS live_installs_install_idx ON live_installs(install_hash);
+      CREATE UNIQUE INDEX IF NOT EXISTS live_installs_signal_idx ON live_installs(signal_hash);
+      CREATE INDEX IF NOT EXISTS live_installs_seen_idx ON live_installs(last_seen_at);
       COMMIT;`);
   } finally {
     await client.end();
   }
+}
+
+/** True when this database has never been initialised (fresh local install). */
+export async function needsSchema(connectionString) {
+  const client = new pg.Client({ connectionString });
+  await client.connect();
+  try {
+    const { rows: [row] } = await client.query("select to_regclass('public.connections') is null as missing");
+    return Boolean(row?.missing);
+  } finally {
+    await client.end();
+  }
+}
+
+/** First-run table creation, using the same drizzle schema the app imports. */
+export async function createSchema() {
+  const { spawnSync } = await import("node:child_process");
+  console.log("Preparing the private local database…");
+  const result = spawnSync(process.execPath, ["node_modules/drizzle-kit/bin.cjs", "push"], { stdio: "inherit" });
+  if (result.status !== 0) throw new Error("The local database could not be prepared. Run setup-windows.cmd and try again.");
 }

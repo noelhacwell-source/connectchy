@@ -193,6 +193,28 @@ export const installDownloads = pgTable(
   ],
 );
 
+/**
+ * One row per running copy of Connectchy. The app refreshes `lastSeenAt` every
+ * 30 seconds; rows older than 90 seconds are no longer "online". Only a salted
+ * hash of the install id is stored in both `installHash` and `signalHash`, so
+ * the public presence file can never be traced back to a person or a dashboard.
+ */
+export const liveInstalls = pgTable(
+  "live_installs",
+  {
+    id: serial("id").primaryKey(),
+    installHash: text("install_hash").notNull(),
+    signalHash: text("signal_hash").notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("live_installs_install_idx").on(t.installHash),
+    uniqueIndex("live_installs_signal_idx").on(t.signalHash),
+    index("live_installs_seen_idx").on(t.lastSeenAt),
+  ],
+);
+
 const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
 export const studioVideoChunks = pgTable("studio_video_chunks", {
   messageId: integer("message_id").notNull().references(() => studioVideos.messageId, { onDelete: "cascade" }),
