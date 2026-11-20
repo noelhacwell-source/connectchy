@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Download, History, PanelsTopLeft, Check } from "lucide-react";
+import { Download, History, PanelsTopLeft, Check, ArrowRight, RefreshCw } from "lucide-react";
 import releaseNotes from "../../release-notes.json";
 import WorkspaceDialog from "./WorkspaceDialog";
 
@@ -10,7 +10,7 @@ type Status = {
   installed: string;
   available: string | null;
   message: string;
-  notes?: {title:string; changes:string[]}[];
+  notes?: { title: string; changes: string[] }[];
 };
 export default function AppUpdates() {
   const [state, setState] = useState<Status | null>(null),
@@ -105,6 +105,13 @@ export default function AppUpdates() {
   if (!state) return null;
   const release = (state.available && state.notes?.[0]) || releaseNotes.releases[0];
   const working = state.phase === "installing" || requested;
+  const hasUpdate = !!state.available;
+  const short = (s: string | null) => (s ? s.slice(0, 7) : "");
+  const statusText =
+    error ||
+    state.message ||
+    (working ? "Preparing the update…" : hasUpdate ? "Ready to install." : "You're up to date.");
+  const statusKind = error ? "bad" : working ? "working" : hasUpdate ? "ready" : "current";
   return (
     <>
       <button
@@ -117,7 +124,7 @@ export default function AppUpdates() {
             : "Changelog. Connectchy checks GitHub every 10 minutes."
         }
       >
-        {state.available ? <Download size={15} /> : <History size={15} />}
+        {state.available ? <Download size={14} /> : <History size={14} />}
         {working
           ? "Updating…"
           : state.available
@@ -126,24 +133,84 @@ export default function AppUpdates() {
         {state.available && !working && <span className="release-dot" aria-label="new version" />}
       </button>
       {open && (
-        <WorkspaceDialog
-          label="Updates and changelog"
-          close={() => setOpen(false)}
-        >
+        <WorkspaceDialog label="Updates and changelog" close={() => setOpen(false)}>
           <section className="release-panel">
-            <header className="release-heading">
-              <span className="release-symbol"><PanelsTopLeft size={25}/></span>
-              <h2>{release.title}</h2>
-            </header>
-            <ul className="release-changes">
-              {release.changes.map(change => (
-                <li key={change}><Check size={15} aria-hidden="true"/><span>{change}</span></li>
-              ))}
-            </ul>
-            <footer className="release-footer">
-              <p role="status">{error || state.message || (working ? "Updating…" : state.available ? "Ready to install." : "You're up to date.")}</p>
-              {state.available && <button type="button" disabled={working} onClick={update}><Download size={15}/>{working ? "Updating…" : "Update and restart"}</button>}
-            </footer>
+            <div className="release-card">
+              <header className="release-head">
+                <span className={`release-kind ${statusKind}`}>
+                  {hasUpdate ? <Download size={13} strokeWidth={2} /> : <Check size={13} strokeWidth={2} />}
+                  {hasUpdate ? "Update available" : "Up to date"}
+                </span>
+                <div className="release-symbol">
+                  {hasUpdate ? (
+                    <PanelsTopLeft size={34} strokeWidth={2.2} />
+                  ) : (
+                    <History size={34} strokeWidth={2.2} />
+                  )}
+                </div>
+                <h2 className="release-title">{release.title}</h2>
+                <p className="release-sub">
+                  {hasUpdate
+                    ? "A newer version is ready on GitHub. Connectchy checks for updates every 10 minutes."
+                    : "You're on the latest release. Connectchy checks GitHub every 10 minutes."}
+                </p>
+                {hasUpdate && (
+                  <div className="version-compare">
+                    <div className="ver-item">
+                      <span className="ver-label">Installed</span>
+                      <span className="ver-sha">{short(state.installed)}</span>
+                    </div>
+                    <span className="ver-arrow"><ArrowRight size={11} strokeWidth={2} /></span>
+                    <div className="ver-item">
+                      <span className="ver-label">Available</span>
+                      <span className="ver-sha">{short(state.available)}</span>
+                    </div>
+                  </div>
+                )}
+              </header>
+
+              <ul className="release-changes">
+                {release.changes.map((change, i) => (
+                  <li key={i} className="change-item">
+                    <div className="change-mark"><Check size={12} strokeWidth={2.2} fill="#ffffff" /></div>
+                    <span className="change-text">{change}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <footer className="release-foot">
+                <p className="status-text" role="status">
+                  {statusText}
+                </p>
+                <div className="release-actions">
+                  {hasUpdate && (
+                    <button
+                      type="button"
+                      className={`update-btn ${working ? "working" : ""}`}
+                      disabled={working}
+                      onClick={update}
+                    >
+                      {working ? (
+                        <>
+                          <RefreshCw size={14} strokeWidth={2.2} className="spin" />
+                          <span>Updating…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download size={14} />
+                          <span>Update and restart</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                  {!hasUpdate && (
+                    <button type="button" className="close-btn" onClick={() => setOpen(false)}>
+                      Got it
+                    </button>
+                  )}
+                </div>
+              </footer>
+            </div>
           </section>
         </WorkspaceDialog>
       )}
