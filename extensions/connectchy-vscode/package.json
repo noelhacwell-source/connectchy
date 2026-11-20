@@ -2,7 +2,7 @@
   "name": "connectchy-vscode",
   "displayName": "Connectchy — AI Workspace",
   "description": "Connect your VS Code project to a shared AI team in Connectchy.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "connectchy-local",
   "license": "UNLICENSED",
   "engines": {

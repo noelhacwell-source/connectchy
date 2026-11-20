@@ -1,6 +1,6 @@
 # Connectchy feature release
 
-347 new capabilities. Existing chat and task features are not included in this inventory.
+348 new capabilities. Existing chat and task features are not included in this inventory.
 
 Roblox tools require plugin 1.4.0; advanced VS Code tools require extension 0.2.0. Language-provider tools depend on the project's installed language extension. Native operations require the editor to be open and connected.
 
@@ -580,20 +580,20 @@ Roblox tools require plugin 1.4.0; advanced VS Code tools require extension 0.2.
 192. **Delete all · Messages** — Remove the full authorized collection, including records beyond the first page.
    Surface: shared; entry: Manage records → Messages.
 
-193. **Search · Videos** — Search loaded records by title, details, author, or ID.
-   Surface: shared; entry: Manage records → Videos.
+193. **Search · Videos & images** — Search loaded records by title, details, author, or ID.
+   Surface: shared; entry: Manage records → Videos & images.
 
-194. **Filter · Videos** — Filter loaded records by status and reorder by date or title.
-   Surface: shared; entry: Manage records → Videos.
+194. **Filter · Videos & images** — Filter loaded records by status and reorder by date or title.
+   Surface: shared; entry: Manage records → Videos & images.
 
-195. **Export · Videos** — Export the currently visible record list as JSON.
-   Surface: shared; entry: Manage records → Videos.
+195. **Export · Videos & images** — Export the currently visible record list as JSON.
+   Surface: shared; entry: Manage records → Videos & images.
 
-196. **Delete selected · Videos** — Select specific records and confirm their removal in one request.
-   Surface: shared; entry: Manage records → Videos.
+196. **Delete selected · Videos & images** — Select specific records and confirm their removal in one request.
+   Surface: shared; entry: Manage records → Videos & images.
 
-197. **Delete all · Videos** — Remove the full authorized collection, including records beyond the first page.
-   Surface: shared; entry: Manage records → Videos.
+197. **Delete all · Videos & images** — Remove the full authorized collection, including records beyond the first page.
+   Surface: shared; entry: Manage records → Videos & images.
 
 198. **Search · Surveys** — Search loaded records by title, details, author, or ID.
    Surface: shared; entry: Manage records → Surveys.
@@ -1044,3 +1044,6 @@ Roblox tools require plugin 1.4.0; advanced VS Code tools require extension 0.2.
 
 347. **Delete from the workspace hub** — Permanently remove a saved Connectchy workspace and disconnect its editor.
    Surface: shared; entry: Home → Workspace row.
+
+348. **Real download counter** — See how many people actually installed Connectchy from this dashboard, split by Studio plugin and VS Code extension, once per install and with repeat files tallied separately.
+   Surface: shared; entry: GET /api/downloads.

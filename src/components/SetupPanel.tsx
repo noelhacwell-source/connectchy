@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { forgetConnection, subscribeNever, timeAgo, type Status } from "@/lib/client";
+import { installId, installPlatform } from "@/lib/install-id";
 import { Button, CopyButton, Notice, Panel, StatusPill } from "./ui";
 
 export default function SetupPanel({ token, status }: { token: string; status: Status }) {
@@ -37,7 +38,8 @@ export default function SetupPanel({ token, status }: { token: string; status: S
       const res = await fetch("/api/plugin/download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, origin, format }),
+        // The route records this real download in the install counter before replying.
+        body: JSON.stringify({ token, origin, format, installId: installId(), platform: installPlatform() }),
       });
       if (!res.ok) throw new Error();
       const url = URL.createObjectURL(await res.blob());

@@ -40,6 +40,19 @@ export async function ensureCollaborationSchema(connectionString) {
         part integer NOT NULL, bytes bytea NOT NULL,
         PRIMARY KEY (message_id, part)
       );
+      CREATE TABLE IF NOT EXISTS install_downloads (
+        id serial PRIMARY KEY,
+        install_hash text NOT NULL,
+        kind text NOT NULL,
+        version text,
+        platform text,
+        connection_id integer REFERENCES connections(id) ON DELETE SET NULL,
+        first_downloaded_at timestamptz NOT NULL DEFAULT now(),
+        last_downloaded_at timestamptz NOT NULL DEFAULT now(),
+        downloads integer NOT NULL DEFAULT 1
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS install_downloads_install_kind_idx ON install_downloads(install_hash, kind);
+      CREATE INDEX IF NOT EXISTS install_downloads_kind_idx ON install_downloads(kind);
       COMMIT;`);
   } finally {
     await client.end();

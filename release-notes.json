@@ -1,6 +1,14 @@
 {
   "releases": [
     {
+      "title": "New Download Counter",
+      "changes": [
+        "The top of Home and every workspace now shows a Download Counter with the real number of people who downloaded Connectchy.",
+        "Open the counter to see Roblox Studio plugin and VS Code extension installs, total files sent, and new installs from the last 30 days.",
+        "Downloads are counted by this dashboard's own database when it hands out a real plugin or extension file, once per browser or install. Only a salted hash of a random install id is stored, never an IP address or account."
+      ]
+    },
+    {
       "title": "Error Fix",
       "changes": [
         "VS Code connects using the port in your local workspace link and remembers it when reconnecting.",

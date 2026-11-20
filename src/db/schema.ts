@@ -169,6 +169,30 @@ export const studioVideos = pgTable("studio_videos", {
   frames: jsonb("frames").$type<string[]>().notNull(),
 });
 
+/**
+ * One row per editor install that received a download from this dashboard, keyed
+ * by a salted hash of the browser's install id. The raw id and IP are never
+ * stored, so the counter can never be traced back to a person.
+ */
+export const installDownloads = pgTable(
+  "install_downloads",
+  {
+    id: serial("id").primaryKey(),
+    installHash: text("install_hash").notNull(),
+    kind: text("kind").notNull(),
+    version: text("version"),
+    platform: text("platform"),
+    connectionId: integer("connection_id").references(() => connections.id, { onDelete: "set null" }),
+    firstDownloadedAt: timestamp("first_downloaded_at", { withTimezone: true }).notNull().defaultNow(),
+    lastDownloadedAt: timestamp("last_downloaded_at", { withTimezone: true }).notNull().defaultNow(),
+    downloads: integer("downloads").notNull().default(1),
+  },
+  (t) => [
+    uniqueIndex("install_downloads_install_kind_idx").on(t.installHash, t.kind),
+    index("install_downloads_kind_idx").on(t.kind),
+  ],
+);
+
 const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
 export const studioVideoChunks = pgTable("studio_video_chunks", {
   messageId: integer("message_id").notNull().references(() => studioVideos.messageId, { onDelete: "cascade" }),

@@ -89,4 +89,5 @@ export const RELEASE_FEATURES:Feature[]=[
   { title: "Delete selected Studio instances", entry: "Explorer → Select instances", description: "Select and delete multiple visible instances and their descendants.", group: "Roblox editing", mode: "roblox" as const },
   { title: "Workspace video library", entry: "Videos", description: "Add, browse, play, download and review room clips from a single workspace tab in both editors.", group: "Video review", mode: "shared" as const },
   { title: "Delete from the workspace hub", entry: "Home → Workspace row", description: "Permanently remove a saved Connectchy workspace and disconnect its editor.", group: "Workspace controls", mode: "shared" as const },
+  { title: "Real download counter", entry: "GET /api/downloads", description: "See how many people actually installed Connectchy from this dashboard, split by Studio plugin and VS Code extension, once per install and with repeat files tallied separately.", group: "Workspace controls", mode: "shared" as const },
 ].map((f,i)=>({...f,id:i+1}));

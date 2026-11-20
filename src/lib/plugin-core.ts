@@ -3,7 +3,7 @@ export const PLUGIN_CORE = String.raw`-- Connectchy: connects this Studio sessio
 -- Generated file. The key below is a secret for ONE connection. Do not share it.
 local SERVER_URL = "__SERVER_URL__"
 local PLUGIN_KEY = "__PLUGIN_KEY__"
-local PLUGIN_VERSION = "1.4.0"
+local PLUGIN_VERSION = "1.4.1"
 local ADDRESS_SETTING = "StudioLinkServer:" .. PLUGIN_KEY
 local function validServerAddress(value)
 	if type(value) ~= "string" then return nil end
