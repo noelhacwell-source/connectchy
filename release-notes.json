@@ -1,6 +1,14 @@
 {
   "releases": [
     {
+      "title": "Update Badge and Simple Start",
+      "changes": [
+        "Start Connectchy with npm start - no start file, no manual build and no database setup. The first run prepares everything by itself.",
+        "Connectchy now checks GitHub for a new version every 10 minutes. When one is published, the button at the top changes from Changelog to Update.",
+        "The download counter was removed from the top bar, so the toolbar only shows what you need: the live number, Update and Changelog."
+      ]
+    },
+    {
       "title": "Live Online Counter",
       "changes": [
         "The top of every workspace now shows how many copies of Connectchy are running right now, with an animated count that goes up and down as people open and close the app.",

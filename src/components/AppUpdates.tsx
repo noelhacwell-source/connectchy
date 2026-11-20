@@ -93,13 +93,19 @@ export default function AppUpdates() {
         type="button"
         className={"release-launch" + (state.available ? " available" : "")}
         onClick={() => setOpen(true)}
+        title={
+          state.available
+            ? "A newer version is on GitHub. Open to update."
+            : "Changelog. Connectchy checks GitHub every 10 minutes."
+        }
       >
         {state.available ? <Download size={15} /> : <History size={15} />}
         {working
           ? "Updating…"
           : state.available
-            ? "Update available"
+            ? "Update"
             : "Changelog"}
+        {state.available && !working && <span className="release-dot" aria-label="new version" />}
       </button>
       {open && (
         <WorkspaceDialog
