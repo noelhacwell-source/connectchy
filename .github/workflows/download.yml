@@ -1,0 +1,26 @@
+name: Publish Connectchy download
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['presence/**']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: publish-connectchy
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package the published revision
+        run: git archive --format=zip --prefix=Connectchy/ --output=Connectchy.zip HEAD
+      - name: Publish downloadable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="build-${GITHUB_SHA:0:12}"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" Connectchy.zip --target "$GITHUB_SHA" --title "Connectchy · ${GITHUB_SHA:0:7}" --generate-notes --latest
+          fi
