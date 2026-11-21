@@ -169,7 +169,7 @@ export async function serveWithUpdates({ root, dir, port, onExit }) {
     const previous = active,
       previousSha = installed;
     try {
-      await publish({ phase: "installing", message: "Preparing the update…" });
+      await publish({ phase: "installing", progress: 0, message: "Preparing the update…" });
       const next = await mkdtemp(path.join(cache, "build-"));
       await git(
         ["clone", "--no-checkout", "--no-hardlinks", mirror, next],
@@ -177,8 +177,7 @@ export async function serveWithUpdates({ root, dir, port, onExit }) {
       );
       await git(["checkout", "--detach", sha], next);
       await publish({
-        message:
-          "Installing dependencies and building. You can keep using Connectchy.",
+        progress: 25, message: "Installing dependencies…",
       });
       const npm =
         process.env.npm_execpath ||
@@ -190,9 +189,10 @@ export async function serveWithUpdates({ root, dir, port, onExit }) {
         [npm, "ci", "--include=dev", "--no-audit", "--no-fund"],
         next,
       );
+      await publish({ progress: 50, message: "Building Connectchy…" });
       await runNode([npm, "run", "build"], next);
       if(closed)return;
-      await publish({ message: "Restarting Connectchy…" });
+      await publish({ progress: 75, message: "Restarting Connectchy…" });
       switching = true;
       await halt();
       await launch(next, sha);
@@ -205,7 +205,7 @@ export async function serveWithUpdates({ root, dir, port, onExit }) {
         installed,
         available: null,
         phase: "idle",
-        message: "Update installed.",
+        progress: 100, message: "Update installed.",
       });
       await pruneBuilds([next,previous]).catch(()=>{});
     } catch (e) {

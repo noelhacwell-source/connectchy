@@ -2,7 +2,7 @@ import path from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { ApiError, apiError, jsonBody, ownerRequest } from "@/lib/http-utils";
 import installedNotes from "../../../../release-notes.json";
-import { checkForUpdate, currentState, ensureUpdateWatcher, installUpdate } from "@/lib/self-update";
+import { checkForUpdate, currentState, installationState, ensureUpdateWatcher, installUpdate } from "@/lib/self-update";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,7 @@ async function status() {
     if (!state.checkedAt && state.phase === "checking") {
       await checkForUpdate();
     }
-    return { ...currentState(), notes: currentState().notes ?? installedNotes.releases, managed: false };
+    return { ...await installationState(), notes: currentState().notes ?? installedNotes.releases, managed: false };
   }
   return { managed: true, ...JSON.parse(await readFile(path.join(path.dirname(process.env.CONNECTCHY_UPDATE_SIGNAL), "status.json"), "utf8")) };
 }

@@ -160,8 +160,9 @@ export async function buildRevision({ mirror, cache, root, sha, onProgress = () 
   const next = await mkdtemp(path.join(cache, "build-"));
   await git(["clone", "--no-checkout", "--no-hardlinks", mirror, next], root);
   await git(["checkout", "--detach", sha], next);
-  await onProgress("Installing dependencies and building. You can keep using Connectchy.");
+  await onProgress("Installing dependencies…", 25);
   await runNode([npmCli(), "ci", "--include=dev", "--no-audit", "--no-fund"], next, log);
+  await onProgress("Building Connectchy…", 50);
   await runNode([npmCli(), "run", "build"], next, log);
   if (!existsSync(path.join(next, ".next", "BUILD_ID"))) {
     throw Error("The new version did not produce a build.");

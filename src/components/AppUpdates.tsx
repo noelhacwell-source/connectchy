@@ -7,6 +7,7 @@ import WorkspaceDialog from "./WorkspaceDialog";
 type Release = { title: string; changes: string[] };
 type Status = {
   phase: string;
+  progress?: number;
   installed: string;
   available: string | null;
   message: string;
@@ -126,7 +127,7 @@ export default function AppUpdates() {
       >
         {state.available ? <Download size={14} /> : <History size={14} />}
         {working
-          ? "Updating…"
+          ? `Updating ${state.phase === "installing" ? state.progress ?? 0 : 0}%`
           : state.available
             ? "Update"
             : "Changelog"}
@@ -179,6 +180,7 @@ export default function AppUpdates() {
               </ul>
 
               <footer className="release-foot">
+                {working && <label className="install-progress">Installation steps completed · {state.phase === "installing" ? state.progress ?? 0 : 0}%<progress aria-label="Installation steps completed" max={100} value={state.phase === "installing" ? state.progress ?? 0 : 0}/></label>}
                 <p className="status-text" role="status">
                   {statusText}
                 </p>

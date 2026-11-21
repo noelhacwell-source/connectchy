@@ -1,6 +1,12 @@
 {
   "releases": [
     {
+      "title": "Update progress",
+      "changes": [
+        "Follow installation progress in the toolbar and update dialog. The percentage advances as each installation step finishes."
+      ]
+    },
+    {
       "title": "Projectchy Discord and quieter updates",
       "changes": [
         "Join the Projectchy Discord from the Workspaces footer. Connectchy is moving to its own website.",

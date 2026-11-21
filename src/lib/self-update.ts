@@ -44,6 +44,8 @@ export type UpdateState = {
   summary?: string;
   history?: string[];
   checkedAt?: number;
+  progress?: number;
+  installerPid?: number;
   /** Started by the launcher (scripts/app-updates.mjs), which owns the switcher. */
   managed?: boolean;
 };
@@ -71,6 +73,16 @@ export function currentState(): UpdateState {
   return box.state;
 }
 
+export async function installationState(): Promise<UpdateState> {
+  if (box.state.phase === "installing") {
+    const data = await import("node:fs/promises").then(fs => fs.readFile(path.join(cache, "status.json"), "utf8")).then(JSON.parse).catch(() => null);
+    if (data?.installerPid && data.installerPid === box.state.installerPid && ["installing", "error"].includes(data.phase)) {
+      box.state = { ...box.state, phase: data.phase, message: data.message, progress: data.progress };
+    }
+  }
+  return currentState();
+}
+
 async function installedRevision() {
   if (process.env.CONNECTCHY_REVISION) return process.env.CONNECTCHY_REVISION;
   try {
@@ -84,8 +96,8 @@ async function installedRevision() {
 }
 
 export async function checkForUpdate(): Promise<UpdateState> {
-  if (process.env.CONNECTCHY_UPDATE_SIGNAL) return currentState();
-  box.state = { ...box.state, phase: box.state.phase === "installing" ? "installing" : "checking" };
+  if (process.env.CONNECTCHY_UPDATE_SIGNAL || box.state.phase === "installing") return installationState();
+  box.state = { ...box.state, phase: "checking" };
   try {
     const published: Published = await fetchPublished(mirror, process.cwd());
     const installed = await installedRevision();
@@ -151,7 +163,7 @@ export async function installUpdate(sha: string, origin: string) {
     },
   );
   child.unref();
-  box.state = { ...box.state, phase: "installing", message: "Installing the update. Connectchy will restart itself." };
+  box.state = { ...box.state, phase: "installing", progress: 0, installerPid: child.pid, message: "Installing the update. Connectchy will restart itself." };
   await save().catch(() => {});
   return { started: true, log: installerLog, pid: child.pid };
 }

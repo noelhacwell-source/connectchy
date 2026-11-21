@@ -76,6 +76,7 @@ async function publish(patch) {
     notes: current.notes ?? null,
     ...current,
     ...patch,
+    installerPid: process.pid,
   });
 }
 
@@ -287,7 +288,7 @@ if (command === "install") {
   }
   const root = process.cwd();
   await log(`Installing ${sha.slice(0, 7)} on port ${port}.`);
-  await publish({ phase: "installing", available: sha, message: "Installing the update. Connectchy will restart itself." });
+  await publish({ phase: "installing", progress: 0, available: sha, message: "Installing the update. Connectchy will restart itself." });
 
   let built = null;
   try {
@@ -303,7 +304,7 @@ if (command === "install") {
       sha,
       // Progress must be awaited before the build runs, otherwise the final
       // lines of a long build are still queued when the swap starts.
-      onProgress: (message) => log(message),
+      onProgress: (message, progress) => publish({ message, progress }),
       log: (line) => log("  " + line),
     });
     await log(`Built ${path.basename(built)}.`);
@@ -319,7 +320,7 @@ if (command === "install") {
   }
 
   await log("Build finished; restarting the app.");
-  await publish({ phase: "installing", message: "Restarting Connectchy…" });
+  await publish({ phase: "installing", progress: 75, message: "Restarting Connectchy…" });
   await askToExit();
   if (!(await waitForExit())) await log("The old server did not stop; starting the new one anyway.");
 
@@ -331,7 +332,7 @@ if (command === "install") {
     await publish({
       installed: sha,
       available: null,
-      phase: "idle",
+      phase: "idle", progress: 100,
       notes,
       message: "Update installed.",
       summary: "Update installed",

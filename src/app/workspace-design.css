@@ -270,3 +270,4 @@
 .hub-community-invite:hover {background:#41468f}
 .hub-community-invite:focus-visible {outline:2px solid #aeb4ff;outline-offset:4px}
 .hub-community-footer small {color:var(--theme-muted,#a5adbb);font-size:12px}
+.install-progress {display:grid;gap:7px;font-size:12px;font-variant-numeric:tabular-nums}.install-progress progress {width:100%;height:8px;accent-color:var(--color-signal,#78dfb2)}
