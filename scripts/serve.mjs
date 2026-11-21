@@ -4,7 +4,6 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import 'dotenv/config';
 import { ensureLocalDatabaseConfig } from './database-config.mjs';
-import { checkIn, checkOut } from './presence.mjs';
 import { ensureDatabase, watchDatabase } from './local-database.mjs';
 import { ensureCollaborationSchema, needsSchema, createSchema } from './collaboration-schema.mjs';
 const dir = path.resolve('.local-runtime');
@@ -81,8 +80,7 @@ if(process.argv.includes('--production')){
   app.on('exit', code => { stopDatabaseWatch?.(); tunnel?.kill(); process.exitCode = code || 0; });
   // Count this running copy in the public "currently online" number. Background
   // and best-effort: the dashboard never depends on it.
-  if (!process.argv.includes('--tunnel-only')) setTimeout(() => { void checkIn(port).catch(() => {}); }, 4000).unref();
 }
-function stop() { void checkOut(port); stopUpdatedApp?.(); stopDatabaseWatch?.(); clearInterval(heartbeat); tunnel?.kill(); app?.kill(); clearOwnedState(); }
+function stop() { stopUpdatedApp?.(); stopDatabaseWatch?.(); clearInterval(heartbeat); tunnel?.kill(); app?.kill(); clearOwnedState(); }
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);

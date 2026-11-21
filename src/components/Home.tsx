@@ -1,6 +1,5 @@
 "use client";
 import AppUpdates from "./AppUpdates";
-import LiveCounter from "./LiveCounter";
 
 import ConnectchyLogo from "./ConnectchyLogo";
 import ProjectUploads from "./ProjectUploads";
@@ -298,7 +297,6 @@ export default function Home() {
           <strong>Connectchy</strong>
         </Link>
         <div className="record-actions">
-          <LiveCounter/>
           <AppUpdates/>
           {sections.some((item) => item.id === "home-create") && (
             <a href="#create-workspace" className="hub-header-action">
@@ -343,6 +341,10 @@ export default function Home() {
             </div>
           </>
         )}
+        <footer className="hub-community-footer">
+          <a className="hub-community-invite" href="https://discord.gg/sSRc3ydyqW" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true" viewBox="0 0 24 24" width="24" height="24" fill="#7983ff"><path d="M20.3 4.4a19 19 0 0 0-4.7-1.5l-.6 1.2a17 17 0 0 0-6 0l-.6-1.2a19 19 0 0 0-4.7 1.5C.8 8.7 0 12.9.4 17a19 19 0 0 0 5.8 3l1.2-1.9-1.9-.9.5-.4a14 14 0 0 0 12 0l.5.4-1.9.9 1.2 1.9a19 19 0 0 0 5.8-3c.5-4.8-.8-9-3.3-12.6ZM8.3 14.9c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7.4 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg><span>Join our Discord now!</span><ArrowUpRight size={16} aria-hidden="true"/></a>
+          <small>Connectchy is moving from GitHub to its own website.</small>
+        </footer>
       </main>
       {customizing && (
         <WorkspaceDialog

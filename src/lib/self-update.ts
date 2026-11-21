@@ -74,7 +74,7 @@ export function currentState(): UpdateState {
 async function installedRevision() {
   if (process.env.CONNECTCHY_REVISION) return process.env.CONNECTCHY_REVISION;
   try {
-    const { stdout } = await promisify(execFile)("git", ["rev-parse", "HEAD"], { cwd: process.cwd() });
+    const { stdout } = await promisify(execFile)("git", ["rev-parse", "HEAD"], { windowsHide: true, cwd: process.cwd() });
     const sha = stdout.trim();
     if (validSha(sha)) return sha;
   } catch {

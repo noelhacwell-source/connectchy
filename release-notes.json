@@ -1,6 +1,14 @@
 {
   "releases": [
     {
+      "title": "Projectchy Discord and quieter updates",
+      "changes": [
+        "Join the Projectchy Discord from the Workspaces footer. Connectchy is moving to its own website.",
+        "Removed the Online right now counter from Home and workspace navigation.",
+        "Windows update checks and installation helpers now hide their background terminal windows."
+      ]
+    },
+    {
       "title": "Update Works From Any Start",
       "changes": [
         "The Update button now appears however Connectchy was started: npm start, the launcher, a shortcut, or a plain production server. Nothing has to be announced or installed by hand.",

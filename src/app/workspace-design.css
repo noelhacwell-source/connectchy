@@ -263,3 +263,10 @@
 .live-counter .local-tag strong {color:#ffd9a8;font-size:11px}
 .live-counter .local-tag span {color:#e0b47a}
 @media (max-width:640px) {.live-counter span {display:none}}
+
+.hub-community-footer {display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;margin:32px 0 12px;padding:20px 0;border-top:1px solid var(--theme-border,#ffffff24)}
+.hub-community-invite {display:inline-flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid #9098ff66;border-radius:12px;background:linear-gradient(115deg,#343982,#272951);color:#fff;font-size:14px;font-weight:650;box-shadow:0 3px 12px #17193220}
+.hub-community-invite svg:first-child {fill:#c3c7ff}
+.hub-community-invite:hover {background:#41468f}
+.hub-community-invite:focus-visible {outline:2px solid #aeb4ff;outline-offset:4px}
+.hub-community-footer small {color:var(--theme-muted,#a5adbb);font-size:12px}

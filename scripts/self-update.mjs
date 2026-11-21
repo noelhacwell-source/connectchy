@@ -195,7 +195,7 @@ function listenerPids(port) {
   };
   const run = (command, args) => {
     try {
-      return execFileSync(command, args, { encoding: "utf8", stdio: "pipe", timeout: 15000 });
+      return execFileSync(command, args, { windowsHide: true, encoding: "utf8", stdio: "pipe", timeout: 15000 });
     } catch {
       return "";
     }
@@ -271,7 +271,7 @@ async function freePort() {
   }
   for (const pid of pids) {
     try {
-      if (process.platform === "win32") execFileSync("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "pipe" });
+      if (process.platform === "win32") execFileSync("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, stdio: "pipe" });
       else process.kill(pid, "SIGKILL");
       await log("Stopped process " + pid + " that was holding port " + port + ".");
     } catch (error) {

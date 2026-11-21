@@ -73,12 +73,14 @@ export function npmCli() {
     path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"),
     path.join(path.dirname(process.execPath), "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
   ];
+  const installedCli = candidates.find(candidate => candidate && existsSync(candidate));
+  if (installedCli) return installedCli;
   for (const name of ["npm", "npm.cmd"]) {
     try {
-      const found = execSync(`${name} --version`, { stdio: "pipe", encoding: "utf8", timeout: 15000 }).trim();
+      const found = execSync(`${name} --version`, { windowsHide: true, stdio: "pipe", encoding: "utf8", timeout: 15000 }).trim();
       if (/^\d+\./.test(found)) {
-        const { stdout } = execSync(`${name} root -g`, { stdio: "pipe", encoding: "utf8", timeout: 15000 });
-        candidates.push(path.join(path.dirname(stdout.trim()), "npm", "bin", "npm-cli.js"));
+        const stdout = execSync(`${name} root -g`, { windowsHide: true, stdio: "pipe", encoding: "utf8", timeout: 15000 });
+        candidates.push(path.join(stdout.trim(), "npm", "bin", "npm-cli.js"));
       }
     } catch {
       /* Not on PATH under this name. */
